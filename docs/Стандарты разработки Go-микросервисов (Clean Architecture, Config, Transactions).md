@@ -446,9 +446,191 @@ func (s *GRPCServer) GetUser(ctx context.Context, req *pb.UserRequest) (*pb.User
 
 ---
 
-## 5. Почему эта архитектура превосходна?
+## 5. Стандарты реализации Transactional Outbox в Go
 
-1. **Идеальная тестируемость:** Слои бизнес-логики (`internal/usecase`) покрываются юнит-тестами на 100%, используя моки репозиториев (например, сгенерированные через `mockgen`). База данных для тестов логики не нужна.
-2. **Безопасность по Fail-Fast:** Вы мгновенно узнаете о любой забытой или сломанной переменной окружения в `.env` еще при сборке контейнера, до запуска в продакшене.
-3. **Безопасные транзакции:** Код бизнес-логики остается чистым, не содержит SQL-зависимостей, но транзакции отрабатывают надежно, гарантируя целостность данных в PostgreSQL.
-4. **Консистентная обработка ошибок:** Фронтенд-разработчики и мобильные клиенты всегда получают предсказуемые коды ошибок и могут красиво их отрисовывать, а распределенная очередь никогда не блокируется благодаря разделению Nak/DLQ.
+Все доменные события, которые генерируются в процессе выполнения Use Case (например, `submission.approved`, `user.gdpr_delete_requested`), не должны публиковаться напрямую в NATS. Они записываются в таблицу `outbox` в рамках той же транзакции.
+
+### Шаг 5.1: Интерфейс Outbox репозитория (`internal/domain/event.go`)
+```go
+package domain
+
+import (
+	"context"
+	"encoding/json"
+)
+
+type OutboxEvent struct {
+	ID            string          `json:"id"`
+	EventType     string          `json:"event_type"`
+	Payload       json.RawMessage `json:"payload"`
+	CorrelationID string          `json:"correlation_id"`
+	Status        string          `json:"status"` // pending, processed, failed
+	RetryCount    int             `json:"retry_count"`
+}
+
+type OutboxRepository interface {
+	Save(ctx context.Context, event *OutboxEvent) error
+	FetchPending(ctx context.Context, limit int) ([]*OutboxEvent, error)
+	MarkProcessed(ctx context.Context, id string) error
+	MarkFailed(ctx context.Context, id string, errMessage string) error
+}
+```
+
+### Шаг 5.2: Пример транзакционной записи Use Case
+Бизнес-логика получает `TxManager` и гарантирует атомарность:
+```go
+func (uc *SubmissionUseCase) Approve(ctx context.Context, submissionID string, correlationID string) error {
+	return uc.txManager.WithinTransaction(ctx, func(txCtx context.Context) error {
+		// 1. Обновляем статус субмита
+		sub, err := uc.submissionRepo.GetByID(txCtx, submissionID)
+		if err != nil {
+			return err
+		}
+		sub.Status = "approved"
+		if err := uc.submissionRepo.Update(txCtx, sub); err != nil {
+			return err
+		}
+
+		// 2. Создаем событие для Outbox
+		payload, _ := json.Marshal(map[string]string{
+			"submission_id": sub.ID,
+			"student_id":    sub.StudentID,
+			"lesson_id":     sub.LessonID,
+		})
+		outboxEvent := &domain.OutboxEvent{
+			EventType:     "submission.approved",
+			Payload:       payload,
+			CorrelationID: correlationID,
+			Status:        "pending",
+		}
+		
+		return uc.outboxRepo.Save(txCtx, outboxEvent)
+	})
+}
+```
+
+### Шаг 5.3: Реализация демона Outbox Publisher (`internal/workers/outbox_publisher.go`)
+Фоновый демон опрашивает СУБД с блокировкой `FOR UPDATE SKIP LOCKED` для обеспечения безопасности в многонодовом развертывании (предотвращает параллельную отправку одного события разными репликами сервиса):
+```go
+package workers
+
+import (
+	"context"
+	"time"
+
+	"github.com/rs/zerolog/log"
+	"mathalama/internal/domain"
+	"mathalama/internal/platform/nats"
+)
+
+type OutboxPublisher struct {
+	repo   domain.OutboxRepository
+	broker *nats.JetStreamBroker
+	ticker *time.Ticker
+}
+
+func NewOutboxPublisher(repo domain.OutboxRepository, broker *nats.JetStreamBroker) *OutboxPublisher {
+	return &OutboxPublisher{
+		repo:   repo,
+		broker: broker,
+		ticker: time.NewTicker(100 * time.Millisecond),
+	}
+}
+
+func (p *OutboxPublisher) Start(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-p.ticker.C:
+			p.processEvents(ctx)
+		}
+	}
+}
+
+func (p *OutboxPublisher) processEvents(ctx context.Context) {
+	// Выбираем незавершенные события пакетно
+	events, err := p.repo.FetchPending(ctx, 50)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to fetch pending outbox events")
+		return
+	}
+
+	for _, event := range events {
+		// Публикация в топик с correlation_id
+		err := p.broker.Publish(ctx, "mathalama.events."+event.EventType, event.Payload, event.CorrelationID)
+		if err != nil {
+			log.Warn().Err(err).Str("event_id", event.ID).Msg("Failed to publish event to NATS JetStream, retrying...")
+			continue
+		}
+
+		// Помечаем как обработанное в случае успеха
+		if err := p.repo.MarkProcessed(ctx, event.ID); err != nil {
+			log.Error().Err(err).Str("event_id", event.ID).Msg("Failed to mark outbox event as processed in DB")
+		}
+	}
+}
+```
+
+---
+
+## 6. Стандарты валидации и системных ограничений (API & DB Limits)
+
+В кодовой базе микросервисов строго запрещено открывать транзакции СУБД или выделять буферы памяти для входящих данных без предварительной проверки следующих ограничений.
+
+### 6.1. Лимиты входящих коллекций (Delivery Validation)
+Любой импорт или массовое действие во избежание DoS-атаки валидируется до начала работы с СУБД:
+```go
+const (
+	MaxQuestionsPerImport = 100
+	MaxOptionsPerQuestion = 8
+	MaxModulesPerCourse   = 50
+	MaxLessonsPerModule   = 100
+	MaxActiveSubmissions  = 3
+)
+
+// Пример валидации в HTTP Delivery
+func (h *TestHandler) ImportQuestions(c *gin.Context) {
+	var req struct {
+		Questions []QuestionInput `json:"questions" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		RespondWithError(c, domain.ErrValidationFailed)
+		return
+	}
+
+	// 1. Проверка лимита вопросов в одном запросе
+	if len(req.Questions) > MaxQuestionsPerImport {
+		c.JSON(http.StatusBadRequest, APIError{
+			ErrorCode: "LIMIT_EXCEEDED",
+			Message:   "Превышен максимальный лимит импорта вопросов (макс. 100 за один запрос).",
+		})
+		return
+	}
+
+	// 2. Проверка вариантов ответов
+	for _, q := range req.Questions {
+		if len(q.Options) > MaxOptionsPerQuestion {
+			c.JSON(http.StatusBadRequest, APIError{
+				ErrorCode: "LIMIT_EXCEEDED",
+				Message:   "Превышен лимит вариантов ответов на один вопрос (макс. 8).",
+			})
+			return
+		}
+	}
+
+	// Вызов Use Case...
+}
+```
+
+---
+
+## 7. Почему эта архитектура превосходна?
+
+1. **Идеальная тестируемость:** Слои бизнес-логики (`internal/usecase`) покрываются юнит-тестами на 100%, используя моки репозиториев. База данных для тестов логики не нужна.
+2. **Абсолютная надежность (No Lost Events):** Внедрение паттерна **Transactional Outbox** полностью решает проблему Dual Write. Ни одно событие об успеваемости или GDPR не потеряется даже при аварийных перезапусках серверов.
+3. **Безопасность по Fail-Fast:** Вы мгновенно узнаете о любой забытой или сломанной переменной окружения в `.env` еще при сборке контейнера, до запуска в продакшене.
+4. **Защита ресурсов от перегрузки:** Жесткие лимиты на уровне хендлеров Delivery предотвращают переполнение памяти (OOM) и тяжелые взаимные блокировки (Lock Contention) в PostgreSQL при массовом импорте.
+5. **Безопасные транзакции:** Код бизнес-логики остается чистым, не содержит SQL-зависимостей, но транзакции отрабатывают надежно, гарантируя целостность данных в PostgreSQL.
+6. **Консистентная обработка ошибок:** Фронтенд-разработчики и мобильные клиенты всегда получают предсказуемые коды ошибок и могут красиво их отрисовывать, а распределенная очередь никогда не блокируется благодаря разделению Nak/DLQ.
+
