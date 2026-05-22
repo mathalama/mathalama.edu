@@ -70,7 +70,8 @@
             "title": "Урок 1. Арифметика сложения",
             "status": "completed",
             "unlocked_at": "2026-05-20T10:00:00Z",
-            "video_url": "https://s3.mathalama.edu/videos/lesson1-addition.mp4",
+            "video_provider": "kinoscope",
+            "video_id": "kino-vid-771829",
             "theory_content": "### Сложение\n\nСложение — это базовая операция...",
             "components": {
               "video_watched": true,
@@ -91,7 +92,8 @@
             "title": "Урок 2. Вычитание чисел",
             "status": "unlocked",
             "unlocked_at": "2026-05-21T14:30:00Z",
-            "video_url": "https://s3.mathalama.edu/videos/lesson2-subtraction.mp4",
+            "video_provider": "vimeo",
+            "video_id": "vimeo-vid-99182a",
             "theory_content": "### Вычитание...",
             "components": {
               "video_watched": false,
@@ -432,7 +434,8 @@
     ```json
     {
       "title": "Урок 2. Сложение двузначных чисел",
-      "video_url": "https://s3.mathalama.edu/videos/lesson2-addition-2d.mp4", // Ссылка на видео (может быть null)
+      "video_provider": "kinoscope", // s3, youtube, kinoscope, vimeo, wistia, vk, rutube, boomstream
+      "video_id": "kino-vid-882739", // Внешний идентификатор эмбеда (может быть null)
       "theory_content": "### Сложение двузначных чисел...\n\nДля сложения в столбик...", // Текстовая теория (может быть null)
       "has_test": true, // Требуется ли сдача интерактивного теста
       "has_assignment": true, // Требуется ли загрузка рукописного конспекта (PDF)
@@ -445,6 +448,8 @@
       "lesson_id": "lesson-uuid-333",
       "module_id": "module-uuid-222",
       "title": "Урок 2. Сложение двузначных чисел",
+      "video_provider": "kinoscope",
+      "video_id": "kino-vid-882739",
       "has_test": true,
       "has_assignment": true,
       "sort_order": 2,

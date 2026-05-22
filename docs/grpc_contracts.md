@@ -129,6 +129,10 @@ message GetLessonStructureResponse {
   int32 absolute_order = 6;
   // ID следующего урока по порядку (если есть)
   string next_lesson_id = 7;
+  // Провайдер видеовещания (s3, youtube, kinoscope, vimeo, wistia и т.д.)
+  string video_provider = 8;
+  // Внешний идентификатор эмбеда/видеолекции
+  string video_id = 9;
 }
 
 message ValidateCourseAccessRequest {

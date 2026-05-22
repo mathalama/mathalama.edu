@@ -231,12 +231,16 @@ CREATE TABLE modules (
     CONSTRAINT uniq_course_module_order UNIQUE (course_id, sort_order)
 );
 
+-- Перечисление поддерживаемых CDN/DRM провайдеров видеовещания
+CREATE TYPE video_provider_type AS ENUM ('s3', 'youtube', 'kinoscope', 'vimeo', 'wistia', 'vk', 'rutube', 'boomstream');
+
 -- Уроки внутри модулей (поддержка комбинированного контента: видео + тест + конспект)
 CREATE TABLE lessons (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     module_id UUID NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
-    video_url VARCHAR(512), -- Ссылка на видеолекцию в MinIO/S3 (может быть NULL, если видео нет)
+    video_provider video_provider_type NOT NULL DEFAULT 's3', -- Тип провайдера видео
+    video_id VARCHAR(100), -- Внешний идентификатор эмбеда/видеолекции (может быть NULL, если видео нет)
     theory_content TEXT, -- Текстовый конспект лекции или теория (может быть NULL)
     has_test BOOLEAN NOT NULL DEFAULT FALSE, -- Флаг: содержит ли урок интерактивный тест
     has_assignment BOOLEAN NOT NULL DEFAULT FALSE, -- Флаг: требуется ли загрузка письменного конспекта (PDF)
@@ -523,3 +527,109 @@ stateDiagram-v2
   * **Переход `upload_pending` $\rightarrow$ `pending`:** Выполняется только асинхронным воркером `S3VerificationWorker` после сверки размера файла ($\le 20$ МБ) и Magic Bytes (`%PDF`). Если файл не валиден, запись переводится в `rejected` с комментарием "Ошибка валидации файла".
   * **Лимит попыток (Spam Protection):** Студент не может иметь более **3 активных субмитов** в статусах (`upload_pending`, `pending` или `rejected`) по одному уроку одновременно. Если лимит превышен, API возвращает ошибку `LIMIT_EXCEEDED` и блокирует создание нового субмита.
   * **Переход `pending` $\rightarrow$ `approved`/`rejected`:** Возможен только по запросу от куратора, закрепленного за когортой данного студента (проверка прав выполняется через gRPC-запрос к `Auth Service`).
+
+---
+
+### 7.7. Интеграция внешних DRM/CDN плееров и трекинг прогресса
+
+Переход от локального S3-хранилища видео к специализированным видеохостингам (YouTube, Kinoscope, Vimeo, Wistia, VK Видео, Rutube, Boomstream) позволяет решить проблему высокой нагрузки на сеть (Network Throttling) и гарантирует защиту авторского контента (DRM/HLS/DASH шифрование с привязкой домена).
+
+#### 1. Сквозной пайплайн прогресса с внешними CDN-плеерами
+
+Вся сетевая нагрузка по доставке тяжелого видеопотока полностью переносится на распределенные CDN-сети внешних провайдеров. Платформа взаимодействует с плеерами на уровне легковесных событий просмотра (Progress Tracking).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Студент
+    participant Client as Фронтенд (Браузер)
+    participant CDN as Внешний CDN (Kinoscope/Vimeo/YouTube)
+    participant API as Progress Service (Go API)
+    participant Redis as Redis (Write-Behind Cache)
+    participant DB as PostgreSQL (Disk)
+
+    Студент->>Client: Открывает урок с видео
+    Client->>CDN: Запрашивает стрим видеопотока (HLS/DASH)
+    CDN-->>Client: Потоковое защищенное вещание
+    
+    loop Просмотр лекции
+        Client->>Client: JS SDK отслеживает процент просмотра (например, 90%+)
+    end
+    
+    Client->>API: POST /api/v1/student/lessons/{id}/video/watch (Конец видео)
+    Note over API, Redis: 1. Мгновенная запись в кэш успеваемости
+    API->>Redis: HSET progress:pending:{student_id} {lesson_id} "completed"
+    API->>Redis: SADD progress:dirty_students {student_id}
+    API-->>Client: HTTP 200 OK (Мгновенный ответ за <1мс)
+    
+    Note over Redis, DB: 2. Асинхронный фоновый сброс (Flusher)
+    DB-->>DB: Bulk UPSERT по тикеру переносит прогресс в БД
+```
+
+#### 2. План Event Mapping (Концепт интеграции JS SDK)
+
+Фронтенд-приложение динамически инициализирует нужный плеер на основе полей `video_provider` и `video_id`. JavaScript SDK подписывается на события плеера и совершает фоновый неблокирующий запрос к API успеваемости:
+
+```javascript
+// Концептуальный пример интеграции на фронтенде
+const initializeVideoPlayer = (provider, videoId, lessonId) => {
+  let progressSent = false;
+
+  const handleVideoFinished = async () => {
+    if (progressSent) return;
+    progressSent = true;
+
+    try {
+      await fetch(`/api/v1/student/lessons/${lessonId}/video/watch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      console.log('Progress marked as completed in Write-Behind Cache');
+    } catch (err) {
+      console.error('Failed to report progress', err);
+      progressSent = false; // Разрешаем повторную отправку при сетевой ошибке
+    }
+  };
+
+  switch (provider) {
+    case 'kinoscope':
+      const kinoscopePlayer = new Kinoscope.Player('player-container', { id: videoId });
+      kinoscopePlayer.on(Kinoscope.PlayerEvents.ENDED, handleVideoFinished);
+      kinoscopePlayer.on(Kinoscope.PlayerEvents.TIME_UPDATE, (data) => {
+        // Засчитываем просмотр при достижении 90% хронометража
+        if (data.percent >= 90) handleVideoFinished();
+      });
+      break;
+
+    case 'vimeo':
+      const vimeoPlayer = new Vimeo.Player('player-container', { id: videoId });
+      vimeoPlayer.on('ended', handleVideoFinished);
+      vimeoPlayer.on('timeupdate', (data) => {
+        if (data.percent >= 0.9) handleVideoFinished();
+      });
+      break;
+
+    case 'youtube':
+      const ytPlayer = new YT.Player('player-container', {
+        videoId: videoId,
+        events: {
+          'onStateChange': (event) => {
+            if (event.data === YT.PlayerState.ENDED) handleVideoFinished();
+          }
+        }
+      });
+      break;
+
+    case 's3':
+      // Локальный фолбек для сырых HLS-файлов
+      const videoElement = document.getElementById('native-player');
+      videoElement.addEventListener('ended', handleVideoFinished);
+      videoElement.addEventListener('timeupdate', () => {
+        const percent = videoElement.currentTime / videoElement.duration;
+        if (percent >= 0.9) handleVideoFinished();
+      });
+      break;
+  }
+};
+```
+
