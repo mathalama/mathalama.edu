@@ -878,14 +878,122 @@ func ValidatePDFMagicBytes(ctx context.Context, s3Client *minio.Client, bucket, 
 
 ---
 
-## 10. Почему эта архитектура превосходна?
+## 10. Интеграционное тестирование с Testcontainers-go
 
-1. **Идеальная тестируемость:** Слои бизнес-логики (`internal/usecase`) покрываются юнит-тестами на 100%, используя моки репозиториев. База данных для тестов логики не нужна.
+Для тестирования инфраструктурного слоя (репозиториев баз данных, NATS JetStream и Redis кэша) запрещено использовать глобальные моки или локально запущенные СУБД. В качестве стандарта тестирования интеграционных связей используется библиотека **`testcontainers-go`**.
+
+Она позволяет перед запуском тестов автоматически поднять в Docker «чистые» sterile-контейнеры PostgreSQL, Redis или NATS, выполнить тесты и автоматически уничтожить их после завершения.
+
+### Шаблон интеграционного теста репозитория успеваемости (PostgreSQL):
+
+```go
+package repository_test
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"testing"
+	"time"
+
+	_ "github.com/lib/pq"
+	"github.com/stretchr/testify/assert"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
+)
+
+// SetupPostgresContainer запускает временный контейнер PostgreSQL для тестов
+func SetupPostgresContainer(ctx context.Context) (testcontainers.Container, *sql.DB, error) {
+	req := testcontainers.ContainerRequest{
+		Image:        "postgres:15-alpine",
+		ExposedPorts: []string{"5432/tcp"},
+		Env: map[string]string{
+			"POSTGRES_DB":       "mathalama_test",
+			"POSTGRES_USER":     "test_user",
+			"POSTGRES_PASSWORD": "test_password",
+		},
+		WaitingFor: wait.ForListeningPort("5432/tcp").WithStartupTimeout(15 * time.Second),
+	}
+
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	host, err := container.Host(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	port, err := container.MappedPort(ctx, "5432")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dsn := fmt.Sprintf("postgres://test_user:test_password@%s:%s/mathalama_test?sslmode=disable", host, port.Port())
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Накатываем структуру таблиц
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS lesson_progress (
+			student_id UUID NOT NULL,
+			lesson_id UUID NOT NULL,
+			status VARCHAR(50) NOT NULL,
+			updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (student_id, lesson_id)
+		);
+	`)
+	
+	return container, db, err
+}
+
+func TestProgressRepository_BulkUpsert(t *testing.T) {
+	ctx := context.Background()
+
+	// 1. Поднимаем контейнер PostgreSQL
+	container, db, err := SetupPostgresContainer(ctx)
+	if err != nil {
+		t.Fatalf("failed to setup PG container: %s", err)
+	}
+	defer container.Terminate(ctx) // Гарантированное уничтожение контейнера
+	defer db.Close()
+
+	repo := NewProgressRepository(db)
+
+	updates := []ProgressUpdate{
+		{StudentID: "student-uuid-1", LessonID: "lesson-uuid-1", Status: "completed"},
+		{StudentID: "student-uuid-1", LessonID: "lesson-uuid-2", Status: "unlocked"},
+	}
+
+	// 2. Выполняем тестируемую операцию
+	err = repo.BulkUpsertProgress(ctx, updates)
+	assert.NoError(t, err)
+
+	// 3. Сверяем состояние в изолированной СУБД
+	var status string
+	err = db.QueryRowContext(ctx, "SELECT status FROM lesson_progress WHERE student_id = $1 AND lesson_id = $2", "student-uuid-1", "lesson-uuid-1").Scan(&status)
+	assert.NoError(t, err)
+	assert.Equal(t, "completed", status)
+}
+```
+
+---
+
+## 11. Почему эта архитектура превосходна?
+
+1. **Идеальная тестируемость:** Слои бизнес-логики (`internal/usecase`) покрываются юнит-тестами на 100%, используя моки репозиториев. Инфраструктурный слой тестируется в стерильных Docker-контейнерах с помощью **Testcontainers-go**.
 2. **Абсолютная надежность (No Lost Events):** Внедрение паттерна **Transactional Outbox** полностью решает проблему Dual Write. Ни одно событие об успеваемости или GDPR не потеряется даже при аварийных перезапусках серверов.
 3. **Безопасность по Fail-Fast:** Вы мгновенно узнаете о любой забытой или сломанной переменной окружения в `.env` еще при сборке контейнера, до запуска в продакшене.
 4. **Снижение Disk I/O в 10-20 раз:** Паттерн **Progress Write-Behind Cache** полностью устраняет прямую дисковую запись пингов видеопрогресса, схлопывая дублирующиеся транзакции и переводя их в Bulk UPSERT.
 5. **Защита ресурсов от перегрузки:** Жесткие лимиты на уровне хендлеров Delivery предотвращают переполнение памяти (OOM) и тяжелые взаимные блокировки (Lock Contention) в PostgreSQL при массовом импорте.
 6. **Безопасные транзакции:** Код бизнес-логики остается чистым, не содержит SQL-зависимостей, но транзакции отрабатывают надежно, гарантируя целостность данных в PostgreSQL.
 7. **Консистентная обработка ошибок:** Фронтенд-разработчики и мобильные клиенты всегда получают предсказуемые коды ошибок и могут красиво их отрисовывать, а распределенная очередь никогда не блокируется благодаря разделению Nak/DLQ.
+
 
 
