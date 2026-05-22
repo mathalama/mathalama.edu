@@ -471,7 +471,7 @@ type OutboxEvent struct {
 type OutboxRepository interface {
 	Save(ctx context.Context, event *OutboxEvent) error
 	FetchPending(ctx context.Context, limit int) ([]*OutboxEvent, error)
-	MarkProcessed(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string) error // Физическое удаление во избежание раздувания таблицы
 	MarkFailed(ctx context.Context, id string, errMessage string) error
 }
 ```
@@ -564,9 +564,9 @@ func (p *OutboxPublisher) processEvents(ctx context.Context) {
 			continue
 		}
 
-		// Помечаем как обработанное в случае успеха
-		if err := p.repo.MarkProcessed(ctx, event.ID); err != nil {
-			log.Error().Err(err).Str("event_id", event.ID).Msg("Failed to mark outbox event as processed in DB")
+		// Физически удаляем из БД успешно отправленное событие во избежание раздувания таблицы
+		if err := p.repo.Delete(ctx, event.ID); err != nil {
+			log.Error().Err(err).Str("event_id", event.ID).Msg("Failed to delete processed outbox event from DB")
 		}
 	}
 }
@@ -781,7 +781,104 @@ func (f *CacheFlusher) flush(ctx context.Context) {
 
 ---
 
-## 9. Почему эта архитектура превосходна?
+## 9. Дополнительные инженерные стандарты
+
+### 9.1. Репликация сессий куратора в Redis (Auth & Bot Services)
+Для полной разгрузки gRPC-связи между ботом и Auth Service:
+
+**В Auth Service (при входе/привязке Telegram):**
+```go
+type CuratorSession struct {
+	ID        string `json:"id"`
+	Email     string `json:"email"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	ChatID    string `json:"chat_id"`
+}
+
+func (uc *AuthUseCase) SaveCuratorSession(ctx context.Context, session *CuratorSession) error {
+	payload, err := json.Marshal(session)
+	if err != nil {
+		return err
+	}
+	
+	key := fmt.Sprintf("curator:session:%s", session.ChatID)
+	return uc.redis.Set(ctx, key, payload, 24*time.Hour).Err()
+}
+```
+
+**В Telegram Bot Service (при приеме вебхуков):**
+```go
+func (b *BotHandler) HandleWebhook(c *gin.Context) {
+	var update tgbotapi.Update
+	// ... парсинг update ...
+	
+	chatID := fmt.Sprintf("%d", update.Message.Chat.ID)
+	
+	// Быстрая проверка сессии в Redis без gRPC-вызовов к Auth Service
+	key := fmt.Sprintf("curator:session:%s", chatID)
+	sessionData, err := b.redis.Get(c.Request.Context(), key).Result()
+	if err == redis.Nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "curator not authorized"})
+		return
+	} else if err != nil {
+		log.Error().Err(err).Msg("Failed to read Redis session")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "internal cache error"})
+		return
+	}
+	
+	var session CuratorSession
+	_ = json.Unmarshal([]byte(sessionData), &session)
+	
+	// Вызов хэндлера бота с валидной сессией...
+}
+```
+
+### 9.2. Безопасность S3: Верификация Magic Bytes (MIME type)
+Воркер `S3VerificationWorker` не доверяет заголовкам HTTP Content-Type от браузера и проверяет сигнатуру файла (Magic Bytes) непосредственно при обработке события из NATS JetStream:
+
+```go
+package workers
+
+import (
+	"bytes"
+	"context"
+	"io"
+	
+	"github.com/minio/minio-go/v7"
+)
+
+// ValidatePDFMagicBytes считывает первые 4 байта и проверяет сигнатуру PDF (%PDF)
+func ValidatePDFMagicBytes(ctx context.Context, s3Client *minio.Client, bucket, objectKey string) (bool, error) {
+	// Считываем только заголовок (первые 4 байта) во избежание загрузки всего файла в память
+	opts := minio.GetObjectOptions{}
+	_ = opts.SetRange(0, 3)
+	
+	object, err := s3Client.GetObject(ctx, bucket, objectKey, opts)
+	if err != nil {
+		return false, err
+	}
+	defer object.Close()
+	
+	header := make([]byte, 4)
+	n, err := io.ReadFull(object, header)
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return false, err
+	}
+	
+	if n < 4 {
+		return false, nil
+	}
+	
+	// Валидная сигнатура PDF: %PDF (0x25 0x50 0x44 0x46)
+	pdfSignature := []byte{0x25, 0x50, 0x44, 0x46}
+	return bytes.Equal(header, pdfSignature), nil
+}
+```
+
+---
+
+## 10. Почему эта архитектура превосходна?
 
 1. **Идеальная тестируемость:** Слои бизнес-логики (`internal/usecase`) покрываются юнит-тестами на 100%, используя моки репозиториев. База данных для тестов логики не нужна.
 2. **Абсолютная надежность (No Lost Events):** Внедрение паттерна **Transactional Outbox** полностью решает проблему Dual Write. Ни одно событие об успеваемости или GDPR не потеряется даже при аварийных перезапусках серверов.

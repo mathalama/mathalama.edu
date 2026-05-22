@@ -56,43 +56,29 @@ flowchart TD
 
 Когда воркер обрабатывает событие `submission.approved`, ему необходимо вычислить `lesson_id` следующего по порядку урока.
 
-### SQL-запрос для вычисления следующего урока:
-Мы ищем урок, у которого порядок сортировки (`sort_order`) больше текущего внутри текущего модуля. Если такого урока нет, мы берем первый урок следующего модуля по порядку `sort_order`.
+### Оптимизированная схема: Денормализация порядка
+Вместо выполнения тяжелого CTE-запроса с джоинами таблиц `lessons` и `modules` при каждом одобрении ДЗ (что при миллионах записей создает колоссальную нагрузку), порядок уроков **денормализуется** на этапе сохранения контента администратором:
+1. Каждому уроку присваивается абсолютный порядковый номер в рамках всего курса: `absolute_order INT`.
+2. В таблицу уроков добавляется предрассчитанная ссылка на следующий урок: `next_lesson_id UUID REFERENCES lessons(id)`.
 
+Благодаря этому, поиск следующего урока превращается в мгновенный, высокопроизводительный SQL-запрос сложности **O(1)**:
+
+#### Вариант 1 (Через предрассчитанную связь next_lesson_id):
 ```sql
-WITH current_lesson AS (
-    SELECT module_id, sort_order 
-    FROM lessons 
-    WHERE id = :current_lesson_id
-),
-next_lesson_in_module AS (
-    -- Пытаемся найти следующий урок в том же модуле
-    SELECT l.id, l.module_id, 1 as priority
-    FROM lessons l
-    JOIN current_lesson cl ON l.module_id = cl.module_id
-    WHERE l.sort_order > cl.sort_order
-    ORDER BY l.sort_order ASC
-    LIMIT 1
-),
-next_module AS (
-    -- Если уроков в модуле не осталось, ищем первый урок следующего модуля
-    SELECT l.id, l.module_id, 2 as priority
-    FROM lessons l
-    JOIN modules m ON l.module_id = m.id
-    JOIN current_lesson cl ON m.course_id = (SELECT course_id FROM modules WHERE id = cl.module_id)
-    WHERE m.sort_order > (SELECT sort_order FROM modules WHERE id = cl.module_id)
-    ORDER BY m.sort_order ASC, l.sort_order ASC
-    LIMIT 1
-),
-combined AS (
-    SELECT * FROM next_lesson_in_module
-    UNION ALL
-    SELECT * FROM next_module
-)
-SELECT id FROM combined
-ORDER BY priority ASC
-LIMIT 1;
+SELECT next_lesson_id 
+FROM lessons 
+WHERE id = :current_lesson_id;
 ```
+
+#### Вариант 2 (Через абсолютный порядковый номер absolute_order):
+```sql
+SELECT id 
+FROM lessons 
+WHERE course_id = (SELECT course_id FROM modules JOIN lessons ON lessons.module_id = modules.id WHERE lessons.id = :current_lesson_id)
+  AND absolute_order = (SELECT absolute_order + 1 FROM lessons WHERE id = :current_lesson_id);
+```
+
+Этот подход исключает деградацию производительности при росте контентной базы и предотвращает блокировки таблиц.
 
 ---
 

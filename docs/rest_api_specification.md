@@ -113,30 +113,27 @@
     ```
 
 ### 2.3. Сдать конспект лекции (PDF) (POST /api/v1/student/lessons/{id}/submit)
-*   **Описание:** Студент загружает написанный от руки и отсканированный конспект лекции (строго в формате PDF) или выполненное домашнее задание. Файл сохраняется в MinIO/S3, а куратор группы получает уведомление о необходимости проверки конспекта.
-*   **Content-Type:** `multipart/form-data`
+*   **Описание:** Студент инициирует загрузку написанного от руки конспекта или ДЗ. Бэкенд создает запись субмита со статусом `upload_pending`, генерирует безопасный **S3 Presigned URL** для прямой загрузки файла в MinIO и возвращает его клиенту. Студент загружает файл напрямую в MinIO S3. После завершения загрузки MinIO вызывает webhook-событие в NATS, воркер бэкенда считывает первые Magic Bytes для проверки формата PDF, лимита размера, и переводит статус в `pending` (ожидает проверки куратором).
+*   **Content-Type:** `application/json`
 *   **Правила валидации и лимиты:**
-    1.  **Тип файла:** Строго PDF.
+    1.  **Тип файла:** Проверяется по Magic Bytes (допускается только валидный PDF).
     2.  **Размер файла:** Максимум **20 МБ**.
-    3.  **Ограничение спама в S3:** Не более **3 активных субмитов** (в статусах `pending` или `rejected`) на этот урок от одного студента.
+    3.  **Ограничение спама в S3:** Не более **3 активных субмитов** (в статусах `upload_pending`, `pending` или `rejected`) на этот урок от одного студента.
     4.  **Длина комментария `student_notes`:** Не более **5 000 символов**.
-*   **Request Fields:**
-    *   `file` (Binary File, строго PDF)
-    *   `student_notes` (Text, комментарий студента, до 5000 символов)
+*   **Request Body:**
+    ```json
+    {
+      "student_notes": "Сдал конспект, файл загружу в S3.",
+      "file_name": "lesson2-homework.pdf"
+    }
+    ```
 *   **Response (201 Created):**
     ```json
     {
       "submission_id": "sub-uuid-777",
-      "status": "pending",
-      "file_url": "https://s3.mathalama.edu/submissions/2026/05/student-uuid-lesson-2-synopsis.pdf",
+      "status": "upload_pending",
+      "presigned_upload_url": "https://s3.mathalama.edu/student-submissions/2026/05/sub-777.pdf?AWSAccessKeyId=minio_admin&Signature=...",
       "created_at": "2026-05-22T21:58:00Z"
-    }
-    ```
-*   **Response (400 Bad Request при превышении лимита размера или формата):**
-    ```json
-    {
-      "error_code": "VALIDATION_FAILED",
-      "message": "Размер файла превышает максимально допустимый лимит (20 МБ)."
     }
     ```
 *   **Response (400 Bad Request при превышении лимита активных попыток):**

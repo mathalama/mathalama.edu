@@ -193,15 +193,17 @@ type DrippingWorker struct {
 }
 
 func (w *DrippingWorker) Start(ctx context.Context) error {
-	// Подписка через Queue Group "dripping-group"
-	// Все запущенные копии этого воркера делят нагрузку между собой
+	// Подписка с использованием шаблона Key-Based Routing для защиты от Race Conditions.
+	// Знак "*" означает сопоставление с student_id в конце топика.
+	// Использование Queue Group ("dripping-worker-group") балансирует нагрузку,
+	// а NATS JetStream гарантирует упорядоченную доставку сообщений конкретного студента на один воркер.
 	sub, err := w.js.QueueSubscribe(
-		"mathalama.events.submission.approved", // Топик
-		"dripping-worker-group",               // Имя группы (балансировщик)
+		"mathalama.events.submission.approved.*", // Топик с маской * (student_id)
+		"dripping-worker-group",                  // Имя группы балансировки
 		func(msg *nats.Msg) {
 			w.handleEvent(msg)
 		},
-		nats.ManualAck(), // Ручное подтверждение обработки (защита от падений)
+		nats.ManualAck(),             // Ручное подтверждение обработки (защита от падений)
 		nats.AckWait(30*time.Second), // Таймаут на обработку
 	)
 	if err != nil {

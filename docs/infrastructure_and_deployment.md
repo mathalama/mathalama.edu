@@ -71,7 +71,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: mathalama-redis
-    command: redis-server --save 60 1 --loglevel warning
+    command: redis-server --appendonly yes --appendfsync everysec --loglevel warning
     volumes:
       - redis_data:/data
     networks:

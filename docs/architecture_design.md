@@ -177,6 +177,11 @@ stateDiagram-v2
 *   *Резервный сценарий (Fallback):* `Progress Service` переключается на **локальную криптографическую проверку JWT-токена** с помощью общего секретного ключа (заданного в `.env` при старте). 
 *   *Результат (Грациозная деградация):* Студент может беспрепятственно смотреть видео и читать теорию на открытых уроках (поскольку сессия проверяется локально), но операции записи (загрузка PDF конспекта) временно блокируются до восстановления связи. Пользователь видит мягкое предупреждение вместо «упавшего» сайта.
 
+#### Репликация сессий кураторов в Redis для Telegram Bot:
+Для устранения зависимости Telegram Bot Service от gRPC-запросов к Auth Service во время массовых вебхуков от Telegram:
+*   При авторизации куратора `Auth Service` дублирует объект профиля в Redis с ключом `curator:session:{telegram_chat_id}` и временем жизни (TTL) 24 часа.
+*   `Telegram Bot Service` при получении вебхуков мгновенно верифицирует статус куратора непосредственно по локальному Redis. Это полностью исключает gRPC-запросы в штатном режиме, устраняет задержки вебхуков и защищает систему от шторма повторных запросов со стороны серверов Telegram при отказе `Auth Service`.
+
 ---
 
 ## 3. Схема базы данных и DDL (PostgreSQL)
@@ -236,6 +241,8 @@ CREATE TABLE lessons (
     has_test BOOLEAN NOT NULL DEFAULT FALSE, -- Флаг: содержит ли урок интерактивный тест
     has_assignment BOOLEAN NOT NULL DEFAULT FALSE, -- Флаг: требуется ли загрузка письменного конспекта (PDF)
     sort_order INT NOT NULL, -- Порядок урока внутри модуля
+    absolute_order INT NOT NULL, -- Денормализованный абсолютный порядковый номер урока в курсе для быстрого Content Dripping
+    next_lesson_id UUID REFERENCES lessons(id) ON DELETE SET NULL, -- Ссылка на следующий урок для O(1) переходов без тяжелых CTE
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uniq_module_lesson_order UNIQUE (module_id, sort_order)
 );
@@ -274,7 +281,7 @@ CREATE TABLE submissions (
     student_id UUID NOT NULL REFERENCES users(id) ON DELETE SET NULL, -- SET NULL важен для GDPR анонимизации
     lesson_id UUID NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
     cohort_id UUID NOT NULL REFERENCES cohorts(id) ON DELETE CASCADE,
-    status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    status VARCHAR(20) NOT NULL DEFAULT 'upload_pending' CHECK (status IN ('upload_pending', 'pending', 'approved', 'rejected')),
     file_url VARCHAR(512), -- Ссылка на архив/файл с решением в MinIO/S3
     student_notes TEXT, -- Комментарий студента
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -380,7 +387,7 @@ tx.Commit()
 В каждом сервисе запускается фоновый демон `OutboxPublisher`:
 1. Делает опрос: `SELECT * FROM outbox WHERE status = 'pending' ORDER BY created_at ASC LIMIT 100 FOR UPDATE SKIP LOCKED`.
 2. Публикует пачку событий в NATS JetStream.
-3. При получении подтверждения доставки (ACK) от NATS переводит статус в `processed` (или физически удаляет строку, чтобы не переполнять БД).
+3. При получении подтверждения доставки (ACK) от NATS **физически удаляет (`DELETE`)** успешно обработанные строки из таблицы `outbox` в рамках той же транзакции. Это предотвращает бесконтрольное раздувание таблицы (Index Bloat) и обеспечивает стабильную производительность sequential scan при аварийных сбоях.
 4. Защита от дубликатов: так как NATS JetStream гарантирует доставку **At-Least-Once**, подписчики воркеров спроектированы как **идемпотентные** (используют `ON CONFLICT DO UPDATE` на уровне PostgreSQL), поэтому возможные сетевые дубликаты полностью безопасны.
 
 ---
@@ -436,6 +443,19 @@ tx.Commit()
 1. Use Case запрашивает базовый прогресс студента из PostgreSQL (`SELECT`).
 2. Запрашивает свежий, еще не сброшенный прогресс из Redis (`HGETALL progress:pending:{student_id}`).
 3. Производит слияние (**Merge**): если в Redis статус урока новее (например, `completed` против `unlocked` в БД), то запись из Redis перезаписывает дисковое состояние перед отдачей ответа клиенту.
+
+### 7.4. Безопасность и валидация загрузки ДЗ: MinIO S3 Webhook Verification
+Для исключения битых ссылок (когда студент запросил Presigned URL, но не загрузил файл) и загрузки вредоносного ПО:
+1. **Фаза инициации:** При запросе на загрузку бэкенд создает запись в таблице `submissions` со статусом `upload_pending` и генерирует Presigned URL для прямой загрузки в MinIO.
+2. **Webhook уведомление:** В MinIO настраивается интеграция для отправки события `s3:ObjectCreated:Put` в NATS JetStream в топик `mathalama.s3.object.created` при успешном физическом завершении загрузки.
+3. **Верификация воркером:** Специализированный воркер `S3VerificationWorker` слушает этот топик, считывает первые байты файла (Magic Bytes) непосредственно из хранилища для проверки реального MIME-типа (допускается только валидный PDF), проверяет лимит размера и переводит статус субмита в `pending` (ожидает проверки куратором).
+
+### 7.5. Защита от Race Conditions: NATS JetStream Key-Based Routing (Partitioning)
+При горизонтальном масштабировании воркеров в Queue Group нарушается последовательность обработки сообщений из-за сетевых задержек. Для гарантии порядка:
+1. **Стрим с разнесением по ключу:** Тема стрима NATS JetStream настраивается с шаблоном `mathalama.events.submission.approved.*`.
+2. **Публикация по Student ID:** События о ДЗ отправляются по адресу `mathalama.events.submission.approved.{student_id}`.
+3. **Consumer Partitioning:** Потребители JetStream настраиваются на фильтрацию по суффиксам или через упорядоченные потребители (Ordered Consumers), гарантируя, что все события, относящиеся к одному конкретному студенту, обрабатываются строго последовательно и попадают на один инстанс воркера.
+
 
 
 
