@@ -510,5 +510,73 @@
     }
     ```
 
+---
+
+## 6. Геймификация, лидерборды и календарь активности (Gamification & Activity API)
+
+### 6.1. Получить таблицу рейтинга студентов (GET /api/v1/student/leaderboard)
+*   **Описание:** Возвращает срез текущих лидеров по очкам опыта XP (глобальный рейтинг или рейтинг внутри конкретного потока когорты).
+*   **Headers:** `Authorization: Bearer <token>` (любая роль)
+*   **Query Parameters:**
+    *   `cohort_id` (string, optional) — ID когорты. Если передан, возвращается рейтинг потока. Если не передан — глобальный рейтинг.
+    *   `offset` (int, optional, default: 0) — количество пропускаемых записей.
+    *   `limit` (int, optional, default: 10) — количество записей в выдаче (максимум 50).
+*   **Response (200 OK):**
+    ```json
+    {
+      "entries": [
+        {
+          "student_id": "student-uuid-111",
+          "student_name": "Мария Сидорова",
+          "xp_score": 2450,
+          "rank": 1
+        },
+        {
+          "student_id": "student-uuid-222",
+          "student_name": "Александр Петров",
+          "xp_score": 2100,
+          "rank": 2
+        }
+      ],
+      "total_count": 4820
+    }
+    ```
+
+### 6.2. Получить календарь ежедневной активности студента (GET /api/v1/student/activity/heatmap)
+*   **Описание:** Возвращает карту ежедневной активности студента за текущий год (GitHub-style calendar heatmap) на базе сверхбыстрого O(1) хэш-кэша Redis.
+*   **Headers:** `Authorization: Bearer <token>` (доступно любой авторизованной роли)
+*   **Query Parameters:**
+    *   `year` (int, optional, default: текущий год) — год выборки активности.
+*   **Response (200 OK):**
+    ```json
+    {
+      "student_id": "student-uuid-111",
+      "year": 2026,
+      "days": [
+        {
+          "date": "2026-05-20",
+          "activity_count": 3,
+          "xp_earned": 150
+        },
+        {
+          "date": "2026-05-21",
+          "activity_count": 0,
+          "xp_earned": 0
+        },
+        {
+          "date": "2026-05-22",
+          "activity_count": 1,
+          "xp_earned": 50
+        },
+        {
+          "date": "2026-05-23",
+          "activity_count": 5,
+          "xp_earned": 250
+        }
+      ]
+    }
+    ```
+
+
 
 

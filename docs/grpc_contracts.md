@@ -163,10 +163,16 @@ option go_package = "mathalama/progress/v1;progressv1";
 
 import "google/protobuf/timestamp.proto";
 
-// ProgressService управляет отслеживанием успеваемости студентов
+// ProgressService управляет отслеживанием успеваемости студентов и геймификацией
 service ProgressService {
   // GetStudentProgress возвращает агрегированный прогресс студента по курсу
   rpc GetStudentProgress (GetStudentProgressRequest) returns (GetStudentProgressResponse);
+
+  // GetLeaderboard возвращает срез рейтинга студентов (глобальный или по когорте)
+  rpc GetLeaderboard (GetLeaderboardRequest) returns (GetLeaderboardResponse);
+
+  // GetActivityHeatmap возвращает сетку ежедневной активности студента за год
+  rpc GetActivityHeatmap (GetActivityHeatmapRequest) returns (GetActivityHeatmapResponse);
 }
 
 message GetStudentProgressRequest {
@@ -204,6 +210,47 @@ message GetStudentProgressResponse {
   int32 total_lessons_count = 5;
   // Подробный прогресс по каждому уроку
   repeated LessonProgressDetail lessons = 6;
+}
+
+message GetLeaderboardRequest {
+  // ID когорты (потока). Если пусто — возвращается глобальный лидерборд
+  string cohort_id = 1;
+  // Сколько записей пропустить (offset)
+  int32 offset = 2;
+  // Сколько записей вернуть (limit)
+  int32 limit = 3;
+}
+
+message LeaderboardEntry {
+  string student_id = 1;
+  string student_name = 2;
+  int32 xp_score = 3;
+  int32 rank = 4;
+}
+
+message GetLeaderboardResponse {
+  repeated LeaderboardEntry entries = 1;
+  int32 total_count = 2;
+}
+
+message GetActivityHeatmapRequest {
+  string student_id = 1;
+  // Год выборки (например, 2026)
+  int32 year = 2;
+}
+
+message ActivityDay {
+  // Дата в формате YYYY-MM-DD
+  string date = 1;
+  // Количество завершенных действий
+  int32 activity_count = 2;
+  // Заработанные очки опыта за этот день
+  int32 xp_earned = 3;
+}
+
+message GetActivityHeatmapResponse {
+  string student_id = 1;
+  repeated ActivityDay days = 2;
 }
 ```
 
