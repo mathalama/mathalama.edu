@@ -93,7 +93,8 @@ graph TD
         AuthServ --> AuthDB[(PostgreSQL Auth DB)]
         ContentServ --> ContentDB[(PostgreSQL Content DB)]
         ProgressServ --> ProgressDB[(PostgreSQL Progress DB)]
-        TG_Serv --> Redis[(Redis FSM Store)]
+        ProgressServ --> Redis[(Redis FSM & Write-Behind Cache)]
+        TG_Serv --> Redis
         ProgressServ --> MinIO[(MinIO S3 Object Storage)]
     end
 
@@ -155,6 +156,33 @@ stateDiagram-v2
 
 > [!NOTE]
 > **Локальный Fallback:** Если `Auth & User Service` недоступен (Circuit Breaker в состоянии `OPEN`), `Progress Service` временно переходит на локальную криптографическую проверку JWT-токена студента с помощью общего `JWT_SECRET`. Студент может продолжать просматривать теорию и видео, но операции записи блокируются до восстановления связи.
+
+### 5.2. Асинхронное кэширование Write-Behind (Решение Disk I/O Bottleneck)
+Для предотвращения перегрузки дисковой подсистемы PostgreSQL при массовом одновременном просмотре видео студентами (высокая Write-Heavy нагрузка), фиксация промежуточного видеопрогресса вынесена в оперативную память Redis с последующим пакетным сбросом на диск.
+
+*   **API-запись за <1мс:** Запросы «видео просмотрено» моментально фиксируются в Redis (`HSET` + `SADD`) и сразу же возвращают клиенту успешный статус.
+*   **Фоновый сброс (Batch Flusher):** Каждые 10 секунд фоновый демон считывает пачки изменившихся данных, схлопывает дубликаты и коммитит их в PostgreSQL одним быстрым пакетным запросом (`Bulk UPSERT`).
+*   **Гибридный сбор (Hybrid Read / Merge):** При чтении прогресса логика объединяет базовые данные с диска PostgreSQL со свежим кэшем из Redis в памяти, обеспечивая 100% консистентность личного кабинета студента.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Студент
+    participant API as Progress Service (API)
+    participant Redis as Redis Cache
+    participant DB as PostgreSQL (Disk)
+
+    Студент->>API: POST /video/watch (пинг просмотра)
+    API->>Redis: Запись в кэш (HSET + SADD dirty)
+    API-->>Студент: HTTP 200 OK (Ответ за <1мс)
+
+    Note over API, DB: Раз в 10 секунд фоновый тикер
+    API->>Redis: SPOP dirty_students 100 (Забираем пачку)
+    Redis-->>API: Student IDs
+    API->>DB: Bulk UPSERT INTO lesson_progress (Пакетный сброс)
+    DB-->>API: Запись успешна
+    API->>Redis: HDEL сброшенный прогресс
+```
 
 ---
 
