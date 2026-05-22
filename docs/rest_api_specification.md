@@ -577,6 +577,91 @@
     }
     ```
 
+---
 
+## 7. Сквозные заметки и Интервальное повторение (Video Notes & Spaced Repetition API)
 
+### 7.1. Создать личную видео-заметку лекции (POST /api/v1/student/notes)
+*   **Описание:** Создает текстовую заметку с жесткой привязкой к конкретной секунде видеолекции.
+*   **Headers:** `Authorization: Bearer <token>` (роль: Студент)
+*   **Request Body:**
+    ```json
+    {
+      "lesson_id": "lesson-uuid-abc",
+      "video_timestamp_seconds": 872,
+      "note_text": "Замечательное доказательство теоремы синусов через описанную окружность."
+    }
+    ```
+*   **Response (201 Created):**
+    ```json
+    {
+      "id": "note-uuid-999",
+      "student_id": "student-uuid-111",
+      "lesson_id": "lesson-uuid-abc",
+      "video_timestamp_seconds": 872,
+      "note_text": "Замечательное доказательство теоремы синусов через описанную окружность.",
+      "created_at": "2026-05-23T03:10:00Z"
+    }
+    ```
 
+### 7.2. Получить список заметок студента по уроку (GET /api/v1/student/lessons/{id}/notes)
+*   **Описание:** Возвращает все заметки текущего студента по конкретному уроку, отсортированные по хронологии видео.
+*   **Headers:** `Authorization: Bearer <token>` (роль: Студент)
+*   **Response (200 OK):**
+    ```json
+    [
+      {
+        "id": "note-uuid-888",
+        "video_timestamp_seconds": 120,
+        "note_text": "Введение в проблематику урока."
+      },
+      {
+        "id": "note-uuid-999",
+        "video_timestamp_seconds": 872,
+        "note_text": "Замечательное доказательство теоремы синусов через описанную окружность."
+      }
+    ]
+    ```
+
+### 7.3. Получить ежедневную очередь повторения вопросов (GET /api/v1/student/review-queue)
+*   **Описание:** Возвращает 5 вопросов из банка тестов, запланированных к повторению на сегодня по алгоритму SuperMemo-2 (SM2).
+*   **Headers:** `Authorization: Bearer <token>` (роль: Студент)
+*   **Response (200 OK):**
+    ```json
+    {
+      "queue_length": 14,
+      "questions": [
+        {
+          "id": "question-uuid-777",
+          "text": "Найдите предел lim (x->0) sin(x)/x",
+          "options": [
+            "0",
+            "1",
+            "бесконечность",
+            "не существует"
+          ],
+          "lesson_id": "lesson-uuid-abc"
+        }
+      ]
+    }
+    ```
+
+### 7.4. Отправить ответ на вопрос из очереди повторения (POST /api/v1/student/review-queue/submit)
+*   **Описание:** Проверяет выбранный ответ. На основе успешности попытки пересчитывает дату следующего показа вопроса по алгоритму SM2 и начисляет XP.
+*   **Headers:** `Authorization: Bearer <token>` (роль: Студент)
+*   **Request Body:**
+    ```json
+    {
+      "question_id": "question-uuid-777",
+      "chosen_option": "1"
+    }
+    ```
+*   **Response (200 OK):**
+    ```json
+    {
+      "is_correct": true,
+      "correct_option": "1",
+      "xp_earned": 15,
+      "next_review_in_days": 6
+    }
+    ```

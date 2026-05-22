@@ -163,7 +163,7 @@ option go_package = "mathalama/progress/v1;progressv1";
 
 import "google/protobuf/timestamp.proto";
 
-// ProgressService управляет отслеживанием успеваемости студентов и геймификацией
+// ProgressService управляет отслеживанием успеваемости студентов, геймификацией и обучением
 service ProgressService {
   // GetStudentProgress возвращает агрегированный прогресс студента по курсу
   rpc GetStudentProgress (GetStudentProgressRequest) returns (GetStudentProgressResponse);
@@ -173,6 +173,18 @@ service ProgressService {
 
   // GetActivityHeatmap возвращает сетку ежедневной активности студента за год
   rpc GetActivityHeatmap (GetActivityHeatmapRequest) returns (GetActivityHeatmapResponse);
+
+  // CreateVideoNote создает личную заметку студента с привязкой к секунде лекции
+  rpc CreateVideoNote (CreateVideoNoteRequest) returns (VideoNoteDetail);
+
+  // GetVideoNotes возвращает все заметки студента по конкретному уроку
+  rpc GetVideoNotes (GetVideoNotesRequest) returns (GetVideoNotesResponse);
+
+  // GetReviewQueue возвращает ежедневную очередь повторения вопросов (SM2)
+  rpc GetReviewQueue (GetReviewQueueRequest) returns (GetReviewQueueResponse);
+
+  // SubmitReviewAnswer принимает ответ на вопрос и пересчитывает его интервал в SM2
+  rpc SubmitReviewAnswer (SubmitReviewAnswerRequest) returns (SubmitReviewAnswerResponse);
 }
 
 message GetStudentProgressRequest {
@@ -251,6 +263,61 @@ message ActivityDay {
 message GetActivityHeatmapResponse {
   string student_id = 1;
   repeated ActivityDay days = 2;
+}
+
+message CreateVideoNoteRequest {
+  string student_id = 1;
+  string lesson_id = 2;
+  int32 video_timestamp_seconds = 3;
+  string note_text = 4;
+}
+
+message VideoNoteDetail {
+  string id = 1;
+  string student_id = 2;
+  string lesson_id = 3;
+  int32 video_timestamp_seconds = 4;
+  string note_text = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message GetVideoNotesRequest {
+  string student_id = 1;
+  string lesson_id = 2;
+}
+
+message GetVideoNotesResponse {
+  repeated VideoNoteDetail notes = 1;
+}
+
+message GetReviewQueueRequest {
+  string student_id = 1;
+  int32 limit = 2;
+}
+
+message ReviewQuestionDetail {
+  string id = 1;
+  string text = 2;
+  repeated string options = 3;
+  string lesson_id = 4;
+}
+
+message GetReviewQueueResponse {
+  int32 queue_length = 1;
+  repeated ReviewQuestionDetail questions = 2;
+}
+
+message SubmitReviewAnswerRequest {
+  string student_id = 1;
+  string question_id = 2;
+  string chosen_option = 3;
+}
+
+message SubmitReviewAnswerResponse {
+  bool is_correct = 1;
+  string correct_option = 2;
+  int32 xp_earned = 3;
+  int32 next_review_in_days = 4;
 }
 ```
 
