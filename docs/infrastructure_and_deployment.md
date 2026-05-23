@@ -30,9 +30,9 @@ services:
     image: postgres:15-alpine
     container_name: mathalama-auth-db
     environment:
-      POSTGRES_USER: auth_user
-      POSTGRES_PASSWORD: auth_password
-      POSTGRES_DB: auth_db
+      POSTGRES_USER: ${AUTH_DB_USER:-auth_user}
+      POSTGRES_PASSWORD: ${AUTH_DB_PASSWORD}
+      POSTGRES_DB: ${AUTH_DB_NAME:-auth_db}
     volumes:
       - auth_db_data:/var/lib/postgresql/data
     networks:
@@ -44,9 +44,9 @@ services:
     image: postgres:15-alpine
     container_name: mathalama-content-db
     environment:
-      POSTGRES_USER: content_user
-      POSTGRES_PASSWORD: content_password
-      POSTGRES_DB: content_db
+      POSTGRES_USER: ${CONTENT_DB_USER:-content_user}
+      POSTGRES_PASSWORD: ${CONTENT_DB_PASSWORD}
+      POSTGRES_DB: ${CONTENT_DB_NAME:-content_db}
     volumes:
       - content_db_data:/var/lib/postgresql/data
     networks:
@@ -58,9 +58,9 @@ services:
     image: postgres:15-alpine
     container_name: mathalama-progress-db
     environment:
-      POSTGRES_USER: progress_user
-      POSTGRES_PASSWORD: progress_password
-      POSTGRES_DB: progress_db
+      POSTGRES_USER: ${PROGRESS_DB_USER:-progress_user}
+      POSTGRES_PASSWORD: ${PROGRESS_DB_PASSWORD}
+      POSTGRES_DB: ${PROGRESS_DB_NAME:-progress_db}
     volumes:
       - progress_db_data:/var/lib/postgresql/data
     networks:
@@ -83,8 +83,8 @@ services:
     image: minio/minio:RELEASE.2023-05-18T00-12-52Z
     container_name: mathalama-minio
     environment:
-      MINIO_ROOT_USER: minio_admin
-      MINIO_ROOT_PASSWORD: minio_admin_password
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     volumes:
       - minio_data:/data
     command: server /data --console-address ":9001"
@@ -131,11 +131,15 @@ services:
     environment:
       - APP_ENV=development
       - HTTP_PORT=8080
-      - PG_URL=postgres://auth_user:auth_password@auth-db:5432/auth_db?sslmode=disable
-      - JWT_SECRET=super-secret-key-that-must-be-very-long-32-chars
-      - PASSWORD_SALT=some-random-salt-string
+      - PG_URL=postgres://${AUTH_DB_USER}:${AUTH_DB_PASSWORD}@auth-db:5432/${AUTH_DB_NAME}?sslmode=disable
+      # Используется асимметричная подпись токенов RS256/EdDSA через смонтированные ключи
+      - JWT_PRIVATE_KEY_PATH=/etc/secrets/jwt/private.pem
+      - JWT_PUBLIC_KEY_PATH=/etc/secrets/jwt/public.pem
+      - PASSWORD_SALT=${PASSWORD_SALT}
       - NATS_URL=nats://nats:4222
       - NATS_CLIENT_NAME=auth-service
+    volumes:
+      - ./secrets/jwt:/etc/secrets/jwt:ro
     networks:
       - frontend-net
       - backend-net
@@ -152,7 +156,7 @@ services:
     environment:
       - APP_ENV=development
       - HTTP_PORT=8080
-      - PG_URL=postgres://content_user:content_password@content-db:5432/content_db?sslmode=disable
+      - PG_URL=postgres://${CONTENT_DB_USER}:${CONTENT_DB_PASSWORD}@content-db:5432/${CONTENT_DB_NAME}?sslmode=disable
       - NATS_URL=nats://nats:4222
       - NATS_CLIENT_NAME=content-service
     networks:
@@ -171,12 +175,12 @@ services:
     environment:
       - APP_ENV=development
       - HTTP_PORT=8080
-      - PG_URL=postgres://progress_user:progress_password@progress-db:5432/progress_db?sslmode=disable
+      - PG_URL=postgres://${PROGRESS_DB_USER}:${PROGRESS_DB_PASSWORD}@progress-db:5432/${PROGRESS_DB_NAME}?sslmode=disable
       - NATS_URL=nats://nats:4222
       - NATS_CLIENT_NAME=progress-service
       - S3_ENDPOINT=minio:9000
-      - S3_ACCESS_KEY=minio_admin
-      - S3_SECRET_KEY=minio_admin_password
+      - S3_ACCESS_KEY=${MINIO_ROOT_USER}
+      - S3_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - S3_BUCKET_NAME=student-submissions
     networks:
       - frontend-net
@@ -194,7 +198,7 @@ services:
     container_name: mathalama-telegram-service
     environment:
       - APP_ENV=development
-      - TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u1
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - REDIS_URL=redis://redis:6379/0
       - NATS_URL=nats://nats:4222
       - NATS_CLIENT_NAME=telegram-service
@@ -215,10 +219,10 @@ services:
       - APP_ENV=development
       - NATS_URL=nats://nats:4222
       - NATS_CLIENT_NAME=notification-service
-      - SMTP_HOST=smtp.gmail.com
-      - SMTP_PORT=587
-      - SMTP_USER=edu@mathalama.com
-      - SMTP_PASS=app-password-from-google
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
     networks:
       - backend-net
     depends_on:
@@ -311,7 +315,11 @@ http {
         }
 
         # Глобальные CORS-заголовки для фронтенда
-        add_header 'Access-Control-Allow-Origin' '*' always;
+        # ВНИМАНИЕ: Использование '*' для Access-Control-Allow-Origin запрещено для авторизованных API.
+        # Браузеры блокируют запросы с учетными данными (credentials/Authorization header), если origin равен '*'.
+        # В продакшене укажите точный URL вашего фронтенда или используйте переменную.
+        add_header 'Access-Control-Allow-Origin' 'https://mathalama.edu' always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
         add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, OPTIONS' always;
         add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type' always;
     }

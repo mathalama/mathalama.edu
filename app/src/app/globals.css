@@ -1,0 +1,143 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #18181b; /* zinc-900 */
+  --surface: #ffffff;
+  --surface-hover: #fafafa;
+  --border: #e4e4e7;
+  --border-light: #f4f4f5;
+  --text-primary: #18181b;
+  --text-secondary: #71717a;
+  --text-tertiary: #a1a1aa;
+  --sidebar-bg: #ffffff;
+  --card-bg: #ffffff;
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+}
+
+[data-theme="dark"] {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --surface: #18181b;
+  --surface-hover: #27272a;
+  --border: #27272a;
+  --border-light: #1e1e21;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+  --sidebar-bg: #0f0f12;
+  --card-bg: #18181b;
+}
+
+@theme {
+  --color-brand: #2563eb;
+  --color-brand-light: #eff6ff;
+  --color-brand-dark: #1d4ed8;
+  --color-success: #10b981;
+  --color-success-light: #ecfdf5;
+  --color-gray-text: #71717a;
+  --color-gray-dark: #18181b;
+  
+  --radius-bento: 24px;
+  --radius-bento-inner: 16px;
+  
+  --shadow-bento: 0 10px 40px -10px rgba(0, 0, 0, 0.04), 0 1px 3px 0 rgba(0, 0, 0, 0.01);
+  --shadow-bento-hover: 0 20px 40px -12px rgba(0, 0, 0, 0.06);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar for premium touch */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d4d4d8;
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+}
+
+/* Reusable premium bento component utility */
+.bento-card {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  padding: 24px;
+  box-shadow: var(--shadow-bento);
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.bento-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-bento-hover);
+}
+
+[data-theme="dark"] .bento-card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="dark"] .bento-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Dark mode text overrides */
+[data-theme="dark"] .text-zinc-900,
+[data-theme="dark"] .text-zinc-950,
+[data-theme="dark"] .text-zinc-800 {
+  color: #fafafa;
+}
+
+[data-theme="dark"] .text-zinc-700 {
+  color: #d4d4d8;
+}
+
+[data-theme="dark"] .text-zinc-600 {
+  color: #a1a1aa;
+}
+
+[data-theme="dark"] .text-zinc-500 {
+  color: #71717a;
+}
+
+[data-theme="dark"] .text-zinc-400 {
+  color: #52525b;
+}
+
+/* Dark mode backgrounds */
+[data-theme="dark"] .bg-white {
+  background-color: var(--surface);
+}
+
+[data-theme="dark"] .bg-zinc-50,
+[data-theme="dark"] .bg-zinc-50\/30,
+[data-theme="dark"] .bg-zinc-50\/50 {
+  background-color: #131316;
+}
+
+[data-theme="dark"] .border-zinc-100,
+[data-theme="dark"] .border-zinc-150,
+[data-theme="dark"] .border-zinc-200 {
+  border-color: var(--border);
+}

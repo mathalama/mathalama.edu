@@ -125,10 +125,11 @@ message GetLessonStructureResponse {
   bool has_test = 4;
   // Флаг, требующий сдачи PDF конспекта
   bool has_assignment = 5;
-  // Абсолютный порядковый номер урока в курсе (для O(1) переходов)
+  // Абсолютный порядковый номер урока в курсе (для переходов по absolute_order)
   int32 absolute_order = 6;
-  // ID следующего урока по порядку (если есть)
-  string next_lesson_id = 7;
+  
+  reserved 7; // Ранее next_lesson_id (удален для перехода на absolute_order)
+  
   // Провайдер видеовещания (s3, youtube, kinoscope, vimeo, wistia и т.д.)
   string video_provider = 8;
   // Внешний идентификатор эмбеда/видеолекции

@@ -208,7 +208,7 @@ export const VideoNotesManager: React.FC<VideoNotesManagerProps> = ({ lessonId, 
 
 Система отслеживает ошибки студентов на тестах и формирует индивидуальную очередь повторения вопросов на основе **алгоритма SuperMemo-2 (SM2)**. Это оптимизирует усвоение сложных формул и теорем.
 
-### 2.1. Математическая модель алгоритма SM2
+### 2.1. Математическая модель алгоритма SM2 с внутрисессионным повторением
 Для каждого сложного вопроса рассчитываются три параметра:
 1.  **`Repetitions` (Повторения):** Количество успешных последовательных ответов на вопрос.
 2.  **`Easiness Factor` (Коэффициент легкости, EF):** Мягко адаптирует интервал. Дефолтное значение: `2.5`. Минимальное значение: `1.3`.
@@ -219,12 +219,16 @@ export const VideoNotesManager: React.FC<VideoNotesManagerProps> = ({ lessonId, 
 *   Верный ответ с 3-й попытки $\rightarrow$ `Quality = 3`.
 *   Верный ответ с 1-й попытки $\rightarrow$ `Quality = 5`.
 
-#### Формула расчета нового интервала ($I$):
+#### Внутрисессионная очередь повторения (Active Session Queue):
+Канонический алгоритм SM2 требует, чтобы при неудовлетворительном ответе (`Quality < 3`) карточка не просто переносилась на следующий день, а оставалась в **активной очереди текущей сессии** до тех пор, пока студент не даст на неё верный ответ (`Quality >= 3`).
+*   **Первая неуспешная попытка (`Quality < 3`):** `Repetitions` сбрасывается в `0`, `Interval` сбрасывается в `1 день`, `Easiness Factor` ($EF'$) рассчитывается по стандартной формуле. Карточка помещается в `ActiveSessionQueue` для показа в этой же сессии.
+*   **Внутрисессионные повторные попытки (Active Session Retries):** До тех пор, пока карточка не будет сдана на `Quality >= 3`, $EF$ не пересчитывается повторно (чтобы избежать чрезмерного штрафа $EF$ при множественных внутрисессионных ошибках), а сама карточка показывается повторно.
+*   **Успешное закрытие карточки в сессии (`Quality >= 3`):** Карточка удаляется из `ActiveSessionQueue`, `Repetitions` устанавливается в `1`, `Interval` устанавливается в `1 день`, планируется следующий показ карточки через 1 день (`next_review_date = TODAY + 1`), а $EF$ пересчитывается с учетом финального качества ответа.
+
+#### Формула расчета нового интервала ($I$) при успешном закрытии сессии:
 $$I(1) = 1$$
 $$I(2) = 6$$
 $$I(n) = I(n-1) \times EF, \quad \text{при } n > 2$$
-
-Если оценка неудовлетворительная (`Quality < 3`), количество повторений сбрасывается в `0`, а интервал — в `1 день`.
 
 #### Формула адаптации коэффициента легкости ($EF'$):
 $$EF' = EF + (0.1 - (5 - q) \times (0.08 + (5 - q) \times 0.02))$$
@@ -252,8 +256,8 @@ CREATE INDEX idx_student_review_date ON student_spaced_repetition(student_id, ne
 
 ---
 
-### 2.3. Go-Реализация ядра алгоритма SM2
-Чистая доменная функция на Go, рассчитывающая параметры следующего повторения:
+### 2.3. Go-Реализация ядра алгоритма SM2 с внутрисессионной очередью
+Чистая доменная функция на Go, рассчитывающая параметры следующего повторения с учетом активной внутрисессионной очереди:
 
 ```go
 package domain
@@ -272,19 +276,56 @@ type SpacedRepetitionItem struct {
 	NextReviewDate time.Time
 }
 
+// ActiveSessionQueue представляет очередь карточек, проваленных в текущей сессии
+type ActiveSessionQueue struct {
+	Items []SpacedRepetitionItem
+}
+
+func NewActiveSessionQueue() *ActiveSessionQueue {
+	return &ActiveSessionQueue{Items: make([]SpacedRepetitionItem, 0)}
+}
+
+func (q *ActiveSessionQueue) Push(item SpacedRepetitionItem) {
+	q.Items = append(q.Items, item)
+}
+
+func (q *ActiveSessionQueue) Pop() *SpacedRepetitionItem {
+	if len(q.Items) == 0 {
+		return nil
+	}
+	item := q.Items[0]
+	q.Items = q.Items[1:]
+	return &item
+}
+
+func (q *ActiveSessionQueue) IsEmpty() bool {
+	return len(q.Items) == 0
+}
+
 // CalculateNextReview выполняет расчет параметров по алгоритму SuperMemo-2 (SM2)
-func CalculateNextReview(item SpacedRepetitionItem, quality int) SpacedRepetitionItem {
+// с учетом внутрисессионных повторений для неуспешных ответов (quality < 3)
+func CalculateNextReview(item SpacedRepetitionItem, quality int, inSessionRetry bool) (SpacedRepetitionItem, *ActiveSessionQueue) {
+	sessionQueue := NewActiveSessionQueue()
+
 	// 1. Обработка забывания (Quality < 3)
 	if quality < 3 {
 		item.Repetitions = 0
-		item.IntervalDays = 1
-		// Корректируем коэффициент легкости EF даже при ошибках
-		item.EasinessFactor = calculateNewEF(item.EasinessFactor, quality)
-		item.NextReviewDate = time.Now().AddDate(0, 0, 1)
-		return item
+		item.IntervalDays = 1 // Сбрасываем интервал до 1 дня
+
+		// Изменяем Ease Factor только при первой неудачной попытке за день (не во внутрисессионном повторе)
+		if !inSessionRetry {
+			item.EasinessFactor = calculateNewEF(item.EasinessFactor, quality)
+		}
+		
+		// Карточка планируется на моментальный повтор в сессии (NextReview = NOW)
+		item.NextReviewDate = time.Now()
+		
+		// Добавляем карточку в оперативную очередь текущей сессии
+		sessionQueue.Push(item)
+		return item, sessionQueue
 	}
 
-	// 2. Расчет интервала для успешных ответов
+	// 2. Расчет интервала для успешных ответов (Quality >= 3)
 	if item.Repetitions == 0 {
 		item.IntervalDays = 1
 	} else if item.Repetitions == 1 {
@@ -299,7 +340,7 @@ func CalculateNextReview(item SpacedRepetitionItem, quality int) SpacedRepetitio
 	item.EasinessFactor = calculateNewEF(item.EasinessFactor, quality)
 	item.NextReviewDate = time.Now().AddDate(0, 0, item.IntervalDays)
 
-	return item
+	return item, sessionQueue
 }
 
 func calculateNewEF(ef float64, quality int) float64 {

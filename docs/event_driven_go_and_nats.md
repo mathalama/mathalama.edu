@@ -193,10 +193,17 @@ type DrippingWorker struct {
 }
 
 func (w *DrippingWorker) Start(ctx context.Context) error {
-	// Подписка с использованием шаблона Key-Based Routing для защиты от Race Conditions.
-	// Знак "*" означает сопоставление с student_id в конце топика.
-	// Использование Queue Group ("dripping-worker-group") балансирует нагрузку,
-	// а NATS JetStream гарантирует упорядоченную доставку сообщений конкретного студента на один воркер.
+	// Подписка с использованием группы балансировки (Queue Group).
+	// ВНИМАНИЕ: Стандартные Queue Groups в NATS JetStream распределяют сообщения round-robin.
+	// Они НЕ гарантируют, что события по одному конкретному student_id (маска *) будут попадать
+	// на один и тот же инстанс воркера. Разные события одного студента могут обрабатываться параллельно
+	// на разных воркерах, создавая угрозу состояния гонки (Race Condition).
+	//
+	// МЕТОДЫ РЕШЕНИЯ RACE CONDITIONS В ВОРКЕРАХ:
+	// 1. Оптимистичная блокировка (OCC): Контроль версий строк в PostgreSQL (столбец version).
+	// 2. Распределенная блокировка: Использование Redis (SET key value NX PX) по student_id на время обработки.
+	// 3. Subject-Based Partitioning: Издатель хэширует student_id в N партиций и публикует в темы
+	//    типа "approved.part-1", "approved.part-2", а каждый воркер слушает строго свою партицию.
 	sub, err := w.js.QueueSubscribe(
 		"mathalama.events.submission.approved.*", // Топик с маской * (student_id)
 		"dripping-worker-group",                  // Имя группы балансировки

@@ -687,11 +687,26 @@ func (uc *ProgressUseCase) GetCourseLessons(ctx context.Context, studentID strin
 		return dbProgress, nil
 	}
 
-	// 3. Выполняем слияние (Merge)
+	// 3. Выполняем слияние (Merge) с использованием весов статусов (монотонность)
+	statusWeights := map[string]int{
+		"locked":    0,
+		"unlocked":  1,
+		"completed": 2,
+	}
+
 	for _, p := range dbProgress {
-		if status, exists := cachedProgress[p.LessonID]; exists {
-			p.Status = status // Состояние из Redis новее
-			p.CompletedAt = time.Now()
+		if cachedStatus, exists := cachedProgress[p.LessonID]; exists {
+			dbWeight := statusWeights[p.Status]
+			cachedWeight := statusWeights[cachedStatus]
+
+			// Состояние из Redis применяется только если оно переводит прогресс вперед по шкале весов
+			if cachedWeight > dbWeight {
+				p.Status = cachedStatus
+				if cachedStatus == "completed" {
+					p.CompletedAt = time.Now()
+				}
+				p.UpdatedAt = time.Now()
+			}
 		}
 	}
 
@@ -834,8 +849,8 @@ func (b *BotHandler) HandleWebhook(c *gin.Context) {
 }
 ```
 
-### 9.2. Безопасность S3: Верификация Magic Bytes (MIME type)
-Воркер `S3VerificationWorker` не доверяет заголовкам HTTP Content-Type от браузера и проверяет сигнатуру файла (Magic Bytes) непосредственно при обработке события из NATS JetStream:
+### 9.2. Безопасность S3: Многоуровневая верификация PDF конспектов
+Воркер `S3VerificationWorker` не доверяет заголовкам HTTP Content-Type от браузера и проводит глубокую верификацию файла в три этапа: Magic Bytes, структурный парсинг дерева PDF для предотвращения polyglot-атак и антивирусное сканирование:
 
 ```go
 package workers
@@ -843,37 +858,128 @@ package workers
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
-	
+	"net"
+	"time"
+
 	"github.com/minio/minio-go/v7"
+	"rsc.io/pdf" // Для структурного парсинга PDF-документа
 )
 
-// ValidatePDFMagicBytes считывает первые 4 байта и проверяет сигнатуру PDF (%PDF)
-func ValidatePDFMagicBytes(ctx context.Context, s3Client *minio.Client, bucket, objectKey string) (bool, error) {
-	// Считываем только заголовок (первые 4 байта) во избежание загрузки всего файла в память
+// VerifyUploadedPDF выполняет глубокую проверку безопасности загруженного PDF:
+// 1. Сигнатурный анализ Magic Bytes (%PDF)
+// 2. Потоковое антивирусное сканирование в ClamAV Daemon по TCP-протоколу INSTREAM
+// 3. Структурный парсинг для предотвращения polyglot-атак
+func VerifyUploadedPDF(ctx context.Context, s3Client *minio.Client, bucket, objectKey, clamavAddr string) (bool, error) {
+	// Этап 1. Быстрая проверка Magic Bytes (первые 4 байта)
 	opts := minio.GetObjectOptions{}
 	_ = opts.SetRange(0, 3)
 	
 	object, err := s3Client.GetObject(ctx, bucket, objectKey, opts)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to fetch object header: %w", err)
 	}
-	defer object.Close()
 	
 	header := make([]byte, 4)
 	n, err := io.ReadFull(object, header)
+	object.Close()
 	if err != nil && err != io.ErrUnexpectedEOF {
-		return false, err
+		return false, fmt.Errorf("failed to read Magic Bytes: %w", err)
 	}
 	
-	if n < 4 {
-		return false, nil
+	if n < 4 || !bytes.Equal(header, []byte{0x25, 0x50, 0x44, 0x46}) {
+		return false, fmt.Errorf("invalid file signature: not a PDF")
 	}
-	
-	// Валидная сигнатура PDF: %PDF (0x25 0x50 0x44 0x46)
-	pdfSignature := []byte{0x25, 0x50, 0x44, 0x46}
-	return bytes.Equal(header, pdfSignature), nil
+
+	// Извлекаем полный файл для антивирусного сканирования и парсинга структуры
+	fullObject, err := s3Client.GetObject(ctx, bucket, objectKey, minio.GetObjectOptions{})
+	if err != nil {
+		return false, fmt.Errorf("failed to fetch full object from S3: %w", err)
+	}
+	defer fullObject.Close()
+
+	// Буферизуем в памяти для повторного чтения
+	var buf bytes.Buffer
+	teeReader := io.TeeReader(fullObject, &buf)
+
+	// Этап 2. Антивирусный контроль в ClamAV Daemon
+	if err := scanWithClamAV(ctx, clamavAddr, teeReader); err != nil {
+		return false, fmt.Errorf("ClamAV threat detected or connection failed: %w", err)
+	}
+
+	// Этап 3. Структурная валидация структуры PDF через rsc.io/pdf AST-парсер
+	reader := bytes.NewReader(buf.Bytes())
+	pdfReader, err := pdf.NewReader(reader, reader.Size())
+	if err != nil {
+		return false, fmt.Errorf("malformed PDF structure (polyglot attack vector detected): %w", err)
+	}
+
+	if pdfReader.NumPage() <= 0 {
+		return false, fmt.Errorf("PDF document contains zero pages")
+	}
+
+	return true, nil
 }
+
+// scanWithClamAV транслирует байты в ClamAV Daemon по протоколу INSTREAM через TCP
+func scanWithClamAV(ctx context.Context, addr string, reader io.Reader) error {
+	dialer := net.Dialer{Timeout: 5 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return fmt.Errorf("failed to connect to ClamAV daemon: %w", err)
+	}
+	defer conn.Close()
+
+	// Отправляем префикс INSTREAM
+	if _, err := conn.Write([]byte("zINSTREAM\x00")); err != nil {
+		return fmt.Errorf("failed to send INSTREAM prefix: %w", err)
+	}
+
+	buf := make([]byte, 32*1024)
+	for {
+		n, err := reader.Read(buf)
+		if n > 0 {
+			// INSTREAM фрейм: [4 байта длины чанка (big endian)][данные чанка]
+			chunkLen := uint32(n)
+			lenBuf := []byte{
+				byte(chunkLen >> 24),
+				byte(chunkLen >> 16),
+				byte(chunkLen >> 8),
+				byte(chunkLen),
+			}
+			if _, err := conn.Write(lenBuf); err != nil {
+				return fmt.Errorf("failed to write chunk length: %w", err)
+			}
+			if _, err := conn.Write(buf[:n]); err != nil {
+				return fmt.Errorf("failed to write chunk data: %w", err)
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	// Чанк нулевой длины сигнализирует о завершении потока
+	if _, err := conn.Write([]byte{0, 0, 0, 0}); err != nil {
+		return fmt.Errorf("failed to send stream terminator: %w", err)
+	}
+
+	resp, err := io.ReadAll(conn)
+	if err != nil {
+		return fmt.Errorf("failed to read scanner response: %w", err)
+	}
+
+	if bytes.Contains(resp, []byte("OK")) {
+		return nil
+	}
+
+	return fmt.Errorf("threat found or scan rejected: %s", string(resp))
+}
+```
 ```
 
 ---
@@ -985,7 +1091,137 @@ func TestProgressRepository_BulkUpsert(t *testing.T) {
 
 ---
 
-## 11. Почему эта архитектура превосходна?
+## 11. Алгоритм интервального повторения SM2 с внутрисессионной очередью
+
+Для закрепления долгосрочных знаний в MathalamaEdu используется канонический алгоритм **SuperMemo-2 (SM2)**. Оригинальный алгоритм требует, чтобы любые карточки (вопросы), на которые студент ответил неверно (оценка легкости `Quality < 3`), помещались во **внутрисессионную оперативную очередь (Active Session Queue)** и показывались повторно в рамках этой же сессии до тех пор, пока студент не ответит на них успешно (`Quality >= 3`).
+
+### 11.1. Математическая модель SM2
+При каждом ответе на вопрос студент выставляет оценку качества ответа $q \in [0..5]$:
+*   `5` — идеальный ответ, абсолютное вспоминание.
+*   `4` — верный ответ после небольшого раздумья.
+*   `3` — верный ответ, но с серьезным трудом.
+*   `2` — неверный ответ, где верный показался знакомым.
+*   `1` — неверный ответ, верный вспоминается с трудом.
+*   `0` — полная амнезия.
+
+Если $q \ge 3$, ответ считается **успешным**. Если $q < 3$, ответ считается **неудачным**, и карточка уходит на внутрисессионное повторение.
+
+Формулы пересчета:
+1.  **Коэффициент легкости (Ease Factor - EF):**
+    $$EF' = EF + (0.1 - (5 - q) \times (0.08 + (5 - q) \times 0.02))$$
+    Минимальное значение $EF' = 1.3$.
+2.  **Интервал повторения (Interval - I):**
+    *   При первом успешном ответе ($n=1$): $I(1) = 1$ день.
+    *   При втором успешном ответе ($n=2$): $I(2) = 6$ дней.
+    *   При последующих ($n > 2$): $I(n) = I(n-1) \times EF$.
+
+### 11.2. Реализация ядра алгоритма на Go:
+```go
+package spaced_repetition
+
+import (
+	"math"
+	"time"
+)
+
+// SM2State хранит метаданные интервального повторения конкретного вопроса студентом
+type SM2State struct {
+	QuestionID   string    `json:"question_id"`
+	StudentID    string    `json:"student_id"`
+	Repetitions  int       `json:"repetitions"`   // Успешные повторения подряд (n)
+	IntervalDays int       `json:"interval_days"` // Текущий интервал в днях (I)
+	EaseFactor   float64   `json:"ease_factor"`   // Коэффициент легкости (EF)
+	NextReview   time.Time `json:"next_review"`   // Время следующего показа
+}
+
+// ActiveSessionQueue оперативная очередь повторений в рамках одной сессии
+type ActiveSessionQueue struct {
+	Items []*SM2State
+}
+
+func NewActiveSessionQueue() *ActiveSessionQueue {
+	return &ActiveSessionQueue{Items: make([]*SM2State, 0)}
+}
+
+func (q *ActiveSessionQueue) Push(state *SM2State) {
+	q.Items = append(q.Items, state)
+}
+
+func (q *ActiveSessionQueue) Pop() *SM2State {
+	if len(q.Items) == 0 {
+		return nil
+	}
+	item := q.Items[0]
+	q.Items = q.Items[1:]
+	return item
+}
+
+func (q *ActiveSessionQueue) IsEmpty() bool {
+	return len(q.Items) == 0
+}
+
+// CalculateSM2 реализует оригинальный алгоритм SuperMemo-2.
+// Параметр inSessionRetry равен true, если вопрос уже повторно проходится в текущей сессии после ошибки.
+func CalculateSM2(state *SM2State, quality int, inSessionRetry bool) (*SM2State, *ActiveSessionQueue) {
+	newState := &SM2State{
+		QuestionID:   state.QuestionID,
+		StudentID:    state.StudentID,
+		Repetitions:  state.Repetitions,
+		IntervalDays: state.IntervalDays,
+		EaseFactor:   state.EaseFactor,
+	}
+	
+	sessionQueue := NewActiveSessionQueue()
+
+	// Сценарий А. Ответ неверный (Quality < 3)
+	if quality < 3 {
+		newState.Repetitions = 0
+		newState.IntervalDays = 1 // Сбрасываем интервал показа до 1 дня
+
+		// Изменяем Ease Factor только один раз при первой неудачной попытке за день
+		if !inSessionRetry {
+			newState.EaseFactor = calculateEaseFactor(state.EaseFactor, quality)
+		}
+		
+		// Назначаем моментальный повтор в сессии (NextReview = NOW)
+		newState.NextReview = time.Now()
+		
+		// Добавляем карточку в оперативную очередь сессии
+		sessionQueue.Push(newState)
+		return newState, sessionQueue
+	}
+
+	// Сценарий Б. Ответ верный (Quality >= 3)
+	if newState.Repetitions == 0 {
+		newState.IntervalDays = 1
+	} else if newState.Repetitions == 1 {
+		newState.IntervalDays = 6
+	} else {
+		newState.IntervalDays = int(math.Round(float64(state.IntervalDays) * state.EaseFactor))
+	}
+
+	newState.EaseFactor = calculateEaseFactor(state.EaseFactor, quality)
+	newState.Repetitions++
+	
+	// Следующий показ планируется через I дней
+	newState.NextReview = time.Now().AddDate(0, 0, newState.IntervalDays)
+
+	return newState, sessionQueue
+}
+
+func calculateEaseFactor(ef float64, quality int) float64 {
+	q := float64(quality)
+	newEF := ef + (0.1 - (5-q)*(0.08+(5-q)*0.02))
+	if newEF < 1.3 {
+		return 1.3 // Каноническая нижняя граница
+	}
+	return newEF
+}
+```
+
+---
+
+## 12. Почему эта архитектура превосходна?
 
 1. **Идеальная тестируемость:** Слои бизнес-логики (`internal/usecase`) покрываются юнит-тестами на 100%, используя моки репозиториев. Инфраструктурный слой тестируется в стерильных Docker-контейнерах с помощью **Testcontainers-go**.
 2. **Абсолютная надежность (No Lost Events):** Внедрение паттерна **Transactional Outbox** полностью решает проблему Dual Write. Ни одно событие об успеваемости или GDPR не потеряется даже при аварийных перезапусках серверов.
