@@ -12,7 +12,6 @@ export const Leaderboard: React.FC = () => {
     avatar: string;
     xp_score: number;
     streak: number;
-    achievements: string[];
   } | null>(null);
 
   // For V1, cohort has our default students, and global adds a couple of mock top users
@@ -45,8 +44,7 @@ export const Leaderboard: React.FC = () => {
         name: "Иван Смирнов (Вы)",
         avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
         xp_score: student.xp_score,
-        streak: 14,
-        achievements: ["first_quiz", "streak_10"]
+        streak: 14
       });
       return;
     }
@@ -64,8 +62,7 @@ export const Leaderboard: React.FC = () => {
         name: student.student_name,
         avatar: mockAvatars[student.rank % mockAvatars.length],
         xp_score: student.xp_score,
-        streak: 5 + (student.rank * 2),
-        achievements: ["first_quiz", "video_expert"]
+        streak: 5 + (student.rank * 2)
       });
     }
   };

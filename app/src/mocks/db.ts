@@ -32,6 +32,7 @@ export interface Lesson {
 }
 
 export interface Module {
+  course_id: string;
   module_id: string;
   module_title: string;
   lessons: Lesson[];
@@ -84,11 +85,19 @@ const INITIAL_COURSES = [
     description: "Изучаем основы языка, слайсы, структуры и создание REST API.",
     cohort_name: "Поток — Весна 2026",
     curator_name: "Алексей Иванов"
+  },
+  {
+    id: "math-course-uuid",
+    title: "Математический анализ и высшая алгебра",
+    description: "Освойте пределы, производные, интегралы и линейные пространства с нуля.",
+    cohort_name: "Поток — Осень 2026",
+    curator_name: "Дмитрий Петров"
   }
 ];
 
 const INITIAL_MODULES: Module[] = [
   {
+    course_id: "go-course-uuid",
     module_id: "m1-uuid",
     module_title: "Модуль 1: Введение и Основы Языка",
     lessons: [
@@ -176,6 +185,202 @@ const INITIAL_MODULES: Module[] = [
                 text: "Какое ключевое слово запускает горутину?",
                 options: ["routine", "run", "go", "async"],
                 correctOptionIndex: 2
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "not_submitted",
+            file_url: null
+          }
+        }
+      }
+    ]
+  },
+  {
+    course_id: "go-course-uuid",
+    module_id: "m2-uuid",
+    module_title: "Модуль 2: Функции, Методы и Интерфейсы",
+    lessons: [
+      {
+        id: "lesson-4-uuid",
+        title: "Урок 4. Функции, указатели и замыкания",
+        status: "locked",
+        video_provider: "vimeo",
+        video_id: "99182a",
+        theory_content: "### Указатели (Pointers) в Go\n\nУказатель хранит адрес памяти переменной. Для получения адреса используется оператор `&`, для разыменования — `*`.\n\n```go\nx := 10\np := &x\nfmt.Println(*p) // выведет 10\n```\n\n### Замыкания (Closures)\nGo поддерживает анонимные функции, которые могут выступать в роли замыканий.",
+        components: {
+          video_watched: false,
+          test: {
+            required: true,
+            passed: false,
+            score: 0,
+            questions: [
+              {
+                id: "q4-1",
+                text: "Что выведет код: x := 5; p := &x; *p = 10; fmt.Println(x)?",
+                options: ["5", "10", "адрес памяти", "ошибка компиляции"],
+                correctOptionIndex: 1
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "not_submitted",
+            file_url: null
+          }
+        }
+      },
+      {
+        id: "lesson-5-uuid",
+        title: "Урок 5. Методы структур и интерфейсы",
+        status: "locked",
+        video_provider: "kinoscope",
+        video_id: "882739",
+        theory_content: "### Интерфейсы (Interfaces) в Go\n\nИнтерфейсы в Go реализуются неявно (implicitly). Нет ключевого слова `implements`. Если тип содержит все методы интерфейса, он автоматически его реализует.\n\n```go\ntype Greeter interface {\n    Greet() string\n}\n\ntype Person struct{}\n\nfunc (p Person) Greet() string {\n    return \"Hello!\"\n}\n```",
+        components: {
+          video_watched: false,
+          test: {
+            required: true,
+            passed: false,
+            score: 0,
+            questions: [
+              {
+                id: "q5-1",
+                text: "Какое ключевое слово используется для явного указания, что структура реализует интерфейс в Go?",
+                options: ["implements", "extends", "нет такого слова (реализация неявная)", "realizes"],
+                correctOptionIndex: 2
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "not_submitted",
+            file_url: null
+          }
+        }
+      }
+    ]
+  },
+  {
+    course_id: "go-course-uuid",
+    module_id: "m3-uuid",
+    module_title: "Модуль 3: Разработка REST API и СУБД",
+    lessons: [
+      {
+        id: "lesson-6-uuid",
+        title: "Урок 6. Создание HTTP-сервера и роутинг",
+        status: "locked",
+        video_provider: "vimeo",
+        video_id: "99182a",
+        theory_content: "### Пакет net/http в Go\n\nСоздание простого сервера:\n```go\nhttp.HandleFunc(\"/\", func(w http.ResponseWriter, r *http.Request) {\n    fmt.Fprint(w, \"Hello World\")\n})\nhttp.ListenAndServe(\":8080\", nil)\n```",
+        components: {
+          video_watched: false,
+          test: {
+            required: true,
+            passed: false,
+            score: 0,
+            questions: [
+              {
+                id: "q6-1",
+                text: "Какая функция пакета net/http запускает HTTP-сервер на прослушивание порта?",
+                options: ["http.Start()", "http.Serve()", "http.ListenAndServe()", "http.Listen()"],
+                correctOptionIndex: 2
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "not_submitted",
+            file_url: null
+          }
+        }
+      },
+      {
+        id: "lesson-7-uuid",
+        title: "Урок 7. Работа с базой данных PostgreSQL",
+        status: "locked",
+        video_provider: "kinoscope",
+        video_id: "882739",
+        theory_content: "### Подключение к БД\n\nИспользуется драйвер `pgx` для работы с PostgreSQL. Поддерживается пул соединений `pgxpool.Pool` и SQL-транзакции.",
+        components: {
+          video_watched: false,
+          test: {
+            required: true,
+            passed: false,
+            score: 0,
+            questions: [
+              {
+                id: "q7-1",
+                text: "Какой метод используется для начала SQL транзакции в Go?",
+                options: ["db.Start()", "db.Begin()", "db.Transaction()", "db.Commit()"],
+                correctOptionIndex: 1
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "not_submitted",
+            file_url: null
+          }
+        }
+      }
+    ]
+  },
+  {
+    course_id: "math-course-uuid",
+    module_id: "m-math-1",
+    module_title: "Модуль 1: Пределы и непрерывность функций",
+    lessons: [
+      {
+        id: "lesson-math-1-uuid",
+        title: "Урок 1. Предел последовательности и функции",
+        status: "completed",
+        video_provider: "kinoscope",
+        video_id: "771829",
+        theory_content: "### Определение предела\n\nЧисло A называется пределом функции f(x) в точке x0, если для любого epsilon > 0 существует delta > 0 такое, что...",
+        components: {
+          video_watched: true,
+          test: {
+            required: true,
+            passed: true,
+            score: 100,
+            questions: [
+              {
+                id: "qm-1",
+                text: "Чему равен предел функции sin(x)/x при x стремящемся к 0?",
+                options: ["0", "1", "бесконечность", "не существует"],
+                correctOptionIndex: 1
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "approved",
+            file_url: "https://s3.mathalama.edu/submissions/math-homework-1.pdf",
+            feedback: "Отличный математический конспект! Теорема о сжатой переменной расписана верно."
+          }
+        }
+      },
+      {
+        id: "lesson-math-2-uuid",
+        title: "Урок 2. Вычисление неопределенностей",
+        status: "unlocked",
+        video_provider: "vimeo",
+        video_id: "99182a",
+        theory_content: "### Раскрытие неопределенностей типа [0/0] и [inf/inf]\n\nИспользуйте замечательные пределы, разложение на множители или правило Лопиталя.",
+        components: {
+          video_watched: false,
+          test: {
+            required: true,
+            passed: false,
+            score: 0,
+            questions: [
+              {
+                id: "qm-2",
+                text: "Раскройте неопределенность: lim (x -> 1) (x^2 - 1) / (x - 1)",
+                options: ["1", "2", "0", "не определено"],
+                correctOptionIndex: 1
               }
             ]
           },
@@ -349,7 +554,6 @@ export interface Friend {
   streak: number;
   presenceStatus: 'online' | 'offline' | 'watching_video' | 'doing_quiz';
   presenceContext: string;
-  achievements: string[];
   chatHistory: { senderId: string; text: string; timestamp: string }[];
 }
 
@@ -374,21 +578,7 @@ export interface Notification {
   icon?: string;
 }
 
-// ── NEW: Achievements ──
-export interface Achievement {
-  id: string;
-  title: string;
-  description: string;
-  category: 'learning' | 'social' | 'speed' | 'streak' | 'mastery';
-  icon: string;
-  unlockCondition: string;
-  unlocked: boolean;
-  progress?: number;     // 0-100
-  progressLabel?: string; // e.g. "2/5 уроков"
-  rarity: 'common' | 'rare' | 'epic' | 'legendary';
-  xpReward: number;
-  unlockedAt?: string;
-}
+
 
 // ── NEW: Certificates ──
 export interface Certificate {
@@ -418,7 +608,6 @@ const INITIAL_FRIENDS: Friend[] = [
     streak: 18,
     presenceStatus: "doing_quiz",
     presenceContext: "Проходит тест по структурам Go",
-    achievements: ["first_quiz", "streak_10", "video_expert"],
     chatHistory: [
       { senderId: "friend-1", text: "Привет! Как успехи со слайсами?", timestamp: new Date(Date.now() - 3600000).toISOString() },
       { senderId: "current-student", text: "Привет! Разобрался, append() — мощь!", timestamp: new Date(Date.now() - 3000000).toISOString() },
@@ -433,7 +622,6 @@ const INITIAL_FRIENDS: Friend[] = [
     streak: 12,
     presenceStatus: "watching_video",
     presenceContext: "Смотрит Урок 3. Конкурентность",
-    achievements: ["video_expert", "perfect_quiz"],
     chatHistory: []
   },
   {
@@ -444,7 +632,6 @@ const INITIAL_FRIENDS: Friend[] = [
     streak: 8,
     presenceStatus: "offline",
     presenceContext: "Вне сети (10 мин назад)",
-    achievements: ["perfect_quiz"],
     chatHistory: []
   },
   {
@@ -455,7 +642,6 @@ const INITIAL_FRIENDS: Friend[] = [
     streak: 5,
     presenceStatus: "online",
     presenceContext: "Изучает теорию Урока 2",
-    achievements: ["first_quiz"],
     chatHistory: []
   },
   {
@@ -466,7 +652,6 @@ const INITIAL_FRIENDS: Friend[] = [
     streak: 3,
     presenceStatus: "offline",
     presenceContext: "Вне сети (2 ч назад)",
-    achievements: [],
     chatHistory: []
   }
 ];
@@ -479,15 +664,6 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
     title: 'Домашняя работа проверена!',
     message: 'Куратор Алексей Иванов одобрил ваш конспект по Уроку 1. Получено +300 XP!',
     timestamp: new Date(Date.now() - 300000).toISOString(),
-    read: false,
-    icon: ''
-  },
-  {
-    id: 'notif-2',
-    type: 'achievement',
-    title: 'Новое достижение: Марафонец!',
-    message: 'Вы занимались 14 дней подряд! Бейдж «Марафонец» разблокирован.',
-    timestamp: new Date(Date.now() - 1800000).toISOString(),
     read: false,
     icon: ''
   },
@@ -528,29 +704,11 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
     icon: ''
   },
   {
-    id: 'notif-7',
-    type: 'social',
-    title: 'Дамир отправил сообщение',
-    message: '«Привет! Давай устроим батл на Арене?»',
-    timestamp: new Date(Date.now() - 172800000).toISOString(),
-    read: true,
-    icon: ''
-  },
-  {
     id: 'notif-8',
     type: 'warning',
     title: 'Дедлайн приближается!',
     message: 'До сдачи конспекта по Уроку 2 осталось 3 дня. Не пропустите!',
     timestamp: new Date(Date.now() - 259200000).toISOString(),
-    read: true,
-    icon: ''
-  },
-  {
-    id: 'notif-9',
-    type: 'achievement',
-    title: 'Достижение: Гофер-Новичок',
-    message: 'Вы впервые вошли в систему MathalamaEdu. Добро пожаловать!',
-    timestamp: new Date(Date.now() - 604800000).toISOString(),
     read: true,
     icon: ''
   },
@@ -565,30 +723,7 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
   }
 ];
 
-// ── NEW: Initial Achievements (16 badges) ──
-const INITIAL_ACHIEVEMENTS: Achievement[] = [
-  // Learning
-  { id: 'ach-gopher', title: 'Гофер-Новичок', description: 'Первый вход в систему MathalamaEdu', category: 'learning', icon: '', unlockCondition: 'Войти в систему', unlocked: true, rarity: 'common', xpReward: 10, unlockedAt: new Date(Date.now() - 1209600000).toISOString() },
-  { id: 'ach-first-video', title: 'Первый Просмотр', description: 'Посмотреть свою первую видеолекцию', category: 'learning', icon: '', unlockCondition: 'Завершить 1 видео', unlocked: true, rarity: 'common', xpReward: 25, unlockedAt: new Date(Date.now() - 604800000).toISOString() },
-  { id: 'ach-test-ace', title: 'Гроза Тестов', description: 'Сдать тест на 100% с первой попытки', category: 'learning', icon: '', unlockCondition: 'Тест на 100%', unlocked: true, rarity: 'rare', xpReward: 100, unlockedAt: new Date(Date.now() - 432000000).toISOString() },
-  { id: 'ach-note-master', title: 'Конспект-Мастер', description: 'Сдать 1 домашнюю работу и получить одобрение куратора', category: 'learning', icon: '', unlockCondition: 'ДЗ одобрено', unlocked: true, rarity: 'rare', xpReward: 150, unlockedAt: new Date(Date.now() - 345600000).toISOString() },
-  // Streak
-  { id: 'ach-streak-7', title: 'Недельный Страйк', description: 'Заниматься 7 дней подряд без перерыва', category: 'streak', icon: '', unlockCondition: '7 дней подряд', unlocked: true, rarity: 'common', xpReward: 50, unlockedAt: new Date(Date.now() - 604800000).toISOString() },
-  { id: 'ach-streak-14', title: 'Марафонец', description: 'Непрерывная серия обучения 14 дней', category: 'streak', icon: '', unlockCondition: '14 дней подряд', unlocked: true, rarity: 'rare', xpReward: 150, unlockedAt: new Date(Date.now() - 86400000).toISOString() },
-  { id: 'ach-streak-30', title: 'Железная Воля', description: 'Удержать серию обучения 30 дней', category: 'streak', icon: '', unlockCondition: '30 дней подряд', unlocked: false, rarity: 'epic', xpReward: 500, progress: 47, progressLabel: '14/30 дней' },
-  { id: 'ach-streak-100', title: 'Легенда Дисциплины', description: '100 дней непрерывного обучения', category: 'streak', icon: '', unlockCondition: '100 дней подряд', unlocked: false, rarity: 'legendary', xpReward: 2000, progress: 14, progressLabel: '14/100 дней' },
-  // Social
-  { id: 'ach-first-battle', title: 'Первый Батл', description: 'Принять участие в соревновании на Арене', category: 'social', icon: '', unlockCondition: 'Завершить 1 батл', unlocked: false, rarity: 'common', xpReward: 30, progress: 0, progressLabel: '0/1 батл' },
-  { id: 'ach-battle-champ', title: 'Чемпион Арены', description: 'Выиграть 5 баттлов на Арене', category: 'social', icon: '', unlockCondition: 'Победить 5 раз', unlocked: false, rarity: 'epic', xpReward: 300, progress: 0, progressLabel: '0/5 побед' },
-  { id: 'ach-team-player', title: 'Командный Игрок', description: 'Отправить 10 сообщений однокурсникам', category: 'social', icon: '', unlockCondition: '10 сообщений', unlocked: false, rarity: 'common', xpReward: 25, progress: 30, progressLabel: '3/10 сообщений' },
-  { id: 'ach-popular', title: 'Душа Потока', description: 'Добавить 5 друзей в свой список', category: 'social', icon: '', unlockCondition: '5 друзей', unlocked: true, rarity: 'rare', xpReward: 75, unlockedAt: new Date(Date.now() - 259200000).toISOString() },
-  // Speed
-  { id: 'ach-speedster', title: 'Спринтер', description: 'Ответить на вопрос в батле менее чем за 3 секунды', category: 'speed', icon: '', unlockCondition: 'Ответ < 3 сек', unlocked: false, rarity: 'rare', xpReward: 100, progress: 0, progressLabel: 'Не достигнуто' },
-  { id: 'ach-night-owl', title: 'Ночная Сова', description: 'Заниматься после 23:00', category: 'speed', icon: '', unlockCondition: 'Активность после 23:00', unlocked: false, rarity: 'common', xpReward: 20, progress: 0, progressLabel: 'Не достигнуто' },
-  // Mastery
-  { id: 'ach-course-complete', title: 'Выпускник', description: 'Завершить весь курс на 100%', category: 'mastery', icon: '', unlockCondition: 'Курс пройден', unlocked: false, rarity: 'epic', xpReward: 1000, progress: 33, progressLabel: '1/3 уроков' },
-  { id: 'ach-100-notes', title: '100 Заметок', description: 'Создать 100 закладок к видеолекциям', category: 'mastery', icon: '', unlockCondition: '100 заметок', unlocked: false, rarity: 'legendary', xpReward: 500, progress: 1, progressLabel: '1/100 заметок' },
-];
+
 
 // ── NEW: Initial Certificate ──
 const INITIAL_CERTIFICATES: Certificate[] = [
@@ -617,6 +752,19 @@ const generateWeeklyXp = (): WeeklyXpEntry[] => {
 // Initializer function
 export const initializeMockDB = () => {
   if (typeof window === 'undefined') return;
+
+  // Migration check: Reset storage if stored data is from old single-course schema
+  const storedCourses = getFromStorage<any[]>('mathalama_courses', []);
+  const storedModules = getFromStorage<any[]>('mathalama_modules', []);
+  const hasMathCourse = storedCourses.some(c => c.id === 'math-course-uuid');
+  const modulesLackCourseId = storedModules.some(m => !m.course_id);
+
+  if ((storedCourses.length > 0 && !hasMathCourse) || (storedModules.length > 0 && modulesLackCourseId)) {
+    localStorage.removeItem('mathalama_courses');
+    localStorage.removeItem('mathalama_modules');
+    localStorage.removeItem('mathalama_certificates');
+  }
+
   if (!localStorage.getItem('mathalama_courses')) {
     setToStorage('mathalama_courses', INITIAL_COURSES);
   }
@@ -643,9 +791,6 @@ export const initializeMockDB = () => {
   }
   if (!localStorage.getItem('mathalama_notifications')) {
     setToStorage('mathalama_notifications', INITIAL_NOTIFICATIONS);
-  }
-  if (!localStorage.getItem('mathalama_achievements')) {
-    setToStorage('mathalama_achievements', INITIAL_ACHIEVEMENTS);
   }
   if (!localStorage.getItem('mathalama_certificates')) {
     setToStorage('mathalama_certificates', INITIAL_CERTIFICATES);

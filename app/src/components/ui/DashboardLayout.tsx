@@ -32,19 +32,25 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [bellOpen, setBellOpen] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   const currentUser = leaderboard.find((u) => u.isCurrentUser);
   const totalXP = currentUser?.xp_score || 1200;
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
   // Protect route
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (isMounted && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthenticated, router]);
+  }, [isMounted, isAuthenticated, router]);
 
-  if (!isAuthenticated) {
+  // Show loading spinner until mounted to avoid hydration mismatch
+  if (!isMounted || !isAuthenticated) {
     return (
       <div className="flex h-screen w-screen items-center justify-center" style={{ background: 'var(--background)' }}>
         <div className="flex flex-col items-center space-y-3">
@@ -58,7 +64,6 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
   const navItems = [
     { name: 'Дашборд', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
     { name: 'Мои Курсы', path: '/courses', icon: <BookOpen className="w-5 h-5" /> },
-    { name: 'Достижения', path: '/achievements', icon: <Trophy className="w-5 h-5" /> },
     { name: 'Аналитика', path: '/analytics', icon: <BarChart3 className="w-5 h-5" /> },
     { name: 'Уведомления', path: '/notifications', icon: <Bell className="w-5 h-5" />, badge: unreadCount },
     { name: 'Сертификаты', path: '/certificates', icon: <Award className="w-5 h-5" /> },

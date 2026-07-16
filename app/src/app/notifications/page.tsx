@@ -4,7 +4,7 @@ import React from 'react';
 import { DashboardLayout } from '@/components/ui/DashboardLayout';
 import { useLmsStore } from '@/store/useLmsStore';
 import { motion } from 'framer-motion';
-import { Bell, CheckCheck, Circle, CheckCircle, Trophy, AlertTriangle, MessageSquare, Info } from 'lucide-react';
+import { Bell, CheckCheck, Circle, CheckCircle, AlertTriangle, MessageSquare, Info } from 'lucide-react';
 
 export default function NotificationsPage() {
   const { notifications, markNotificationRead, markAllNotificationsRead } = useLmsStore();
@@ -27,7 +27,6 @@ export default function NotificationsPage() {
   const getTypeStyles = (type: string) => {
     switch (type) {
       case 'success': return 'border-emerald-100 bg-emerald-50/50';
-      case 'achievement': return 'border-amber-100 bg-amber-50/50';
       case 'warning': return 'border-rose-100 bg-rose-50/50';
       case 'social': return 'border-indigo-100 bg-indigo-50/50';
       default: return 'border-blue-100 bg-blue-50/50';
@@ -37,7 +36,6 @@ export default function NotificationsPage() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case 'success': return <CheckCircle className="w-5 h-5 text-emerald-600" />;
-      case 'achievement': return <Trophy className="w-5 h-5 text-amber-500" />;
       case 'warning': return <AlertTriangle className="w-5 h-5 text-rose-500" />;
       case 'social': return <MessageSquare className="w-5 h-5 text-indigo-600" />;
       default: return <Info className="w-5 h-5 text-blue-500" />;

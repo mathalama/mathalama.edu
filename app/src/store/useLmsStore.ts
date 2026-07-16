@@ -14,7 +14,6 @@ import {
   Friend,
   BattleParticipant,
   Notification,
-  Achievement,
   Certificate,
   WeeklyXpEntry
 } from '../mocks/db';
@@ -31,6 +30,14 @@ interface LmsState {
   token: string | null;
   role: 'student' | 'curator' | 'admin' | null;
   studentName: string;
+  studentEmail: string;
+  studentTelegram: string;
+  studentPhone: string;
+  studentGender: string;
+  studentBirthday: string;
+  studentLanguage: string;
+  studentAbout: string;
+  studentSubscribeStatus: string;
   isAuthenticated: boolean;
   loginAttempts: number;
   lockoutTime: number | null;
@@ -64,7 +71,6 @@ interface LmsState {
   // New Features State
   theme: 'light' | 'dark';
   notifications: Notification[];
-  achievements: Achievement[];
   certificates: Certificate[];
   weeklyXp: WeeklyXpEntry[];
 
@@ -84,6 +90,16 @@ interface LmsState {
   submitPdf: (lessonId: string, fileName: string) => Promise<void>;
   deleteProfile: () => Promise<string>;
   resetDatabase: () => void;
+  updateProfile: (
+    name: string,
+    email: string,
+    phone: string,
+    gender: string,
+    birthday: string,
+    language: string,
+    about: string,
+    subscribeStatus: string
+  ) => void;
   
   // Advanced Features Actions
   addVideoNote: (lessonId: string, timestampSeconds: number, text: string) => void;
@@ -113,7 +129,15 @@ export const useLmsStore = create<LmsState>((set, get) => ({
   // Initial state loaded from LocalStorage or DB
   token: getFromStorage<string | null>('mathalama_token', null),
   role: getFromStorage<'student' | 'curator' | 'admin' | null>('mathalama_role', null),
-  studentName: 'Иван Смирнов',
+  studentName: getFromStorage<string>('mathalama_student_name', 'Иван Смирнов'),
+  studentEmail: getFromStorage<string>('mathalama_student_email', 'student@example.com'),
+  studentTelegram: getFromStorage<string>('mathalama_student_telegram', '@student_go'),
+  studentPhone: getFromStorage<string>('mathalama_student_phone', '+7 (777) 123-45-67'),
+  studentGender: getFromStorage<string>('mathalama_student_gender', 'male'),
+  studentBirthday: getFromStorage<string>('mathalama_student_birthday', '2002-05-15'),
+  studentLanguage: getFromStorage<string>('mathalama_student_language', 'ru'),
+  studentAbout: getFromStorage<string>('mathalama_student_about', 'Изучаю программирование и математику.'),
+  studentSubscribeStatus: getFromStorage<string>('mathalama_student_subscribe_status', 'all'),
   isAuthenticated: !!getFromStorage<string | null>('mathalama_token', null),
   loginAttempts: 0,
   lockoutTime: null,
@@ -135,7 +159,6 @@ export const useLmsStore = create<LmsState>((set, get) => ({
   // New Features
   theme: getFromStorage<'light' | 'dark'>('mathalama_theme', 'light'),
   notifications: getFromStorage<Notification[]>('mathalama_notifications', []),
-  achievements: getFromStorage<Achievement[]>('mathalama_achievements', []),
   certificates: getFromStorage<Certificate[]>('mathalama_certificates', []),
   weeklyXp: getFromStorage<WeeklyXpEntry[]>('mathalama_weekly_xp', []),
 
@@ -493,9 +516,17 @@ export const useLmsStore = create<LmsState>((set, get) => ({
     localStorage.removeItem('mathalama_spaced_repetition_states');
     localStorage.removeItem('mathalama_friends');
     localStorage.removeItem('mathalama_notifications');
-    localStorage.removeItem('mathalama_achievements');
     localStorage.removeItem('mathalama_certificates');
     localStorage.removeItem('mathalama_weekly_xp');
+    localStorage.removeItem('mathalama_student_name');
+    localStorage.removeItem('mathalama_student_email');
+    localStorage.removeItem('mathalama_student_telegram');
+    localStorage.removeItem('mathalama_student_phone');
+    localStorage.removeItem('mathalama_student_gender');
+    localStorage.removeItem('mathalama_student_birthday');
+    localStorage.removeItem('mathalama_student_language');
+    localStorage.removeItem('mathalama_student_about');
+    localStorage.removeItem('mathalama_student_subscribe_status');
     initializeMockDB();
     
     set({
@@ -511,12 +542,32 @@ export const useLmsStore = create<LmsState>((set, get) => ({
       friends: getFromStorage<Friend[]>('mathalama_friends', []),
       activeBattle: null,
       notifications: getFromStorage<Notification[]>('mathalama_notifications', []),
-      achievements: getFromStorage<Achievement[]>('mathalama_achievements', []),
       certificates: getFromStorage<Certificate[]>('mathalama_certificates', []),
       weeklyXp: getFromStorage<WeeklyXpEntry[]>('mathalama_weekly_xp', []),
+      studentName: 'Иван Смирнов',
+      studentEmail: 'student@example.com',
+      studentTelegram: '@student_go',
+      studentPhone: '+7 (777) 123-45-67',
+      studentGender: 'male',
+      studentBirthday: '2002-05-15',
+      studentLanguage: 'ru',
+      studentAbout: 'Изучаю программирование и математику.',
+      studentSubscribeStatus: 'all',
     });
 
     get().addToast('База данных сброшена', 'Все данные возвращены к исходному mock-состоянию.', 'info');
+  },
+
+  updateProfile: (name, email, telegram) => {
+    setToStorage('mathalama_student_name', name);
+    setToStorage('mathalama_student_email', email);
+    setToStorage('mathalama_student_telegram', telegram);
+    set({
+      studentName: name,
+      studentEmail: email,
+      studentTelegram: telegram
+    });
+    get().addToast('Профиль сохранен', 'Личные данные успешно обновлены.', 'success');
   },
 
   addVideoNote: (lessonId, timestampSeconds, text) => {

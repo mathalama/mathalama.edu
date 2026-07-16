@@ -1,5 +1,5 @@
 import React from 'react';
-import { Target, Flame, Lightbulb, Crown } from 'lucide-react';
+import { Flame } from 'lucide-react';
 
 interface PublicProfileModalProps {
   isOpen: boolean;
@@ -9,40 +9,8 @@ interface PublicProfileModalProps {
     avatar: string;
     xp_score: number;
     streak: number;
-    achievements?: string[];
   } | null;
 }
-
-const BADGES: Record<string, { label: string; desc: string; icon: React.ReactNode; color: string; bg: string }> = {
-  first_quiz: {
-    label: "Первый триумф",
-    desc: "Сдан первый математический тест",
-    icon: <Target className="w-5 h-5 text-amber-500" />,
-    color: "text-amber-600 border-amber-200",
-    bg: "from-amber-50 to-orange-100"
-  },
-  streak_10: {
-    label: "Повелитель времени",
-    desc: "Серия активности более 10 дней",
-    icon: <Flame className="w-5 h-5 text-rose-500" />,
-    color: "text-rose-600 border-rose-200",
-    bg: "from-rose-50 to-orange-100"
-  },
-  video_expert: {
-    label: "Светлая голова",
-    desc: "Просмотрены все лекционные видео",
-    icon: <Lightbulb className="w-5 h-5 text-emerald-500" />,
-    color: "text-emerald-600 border-emerald-200",
-    bg: "from-emerald-50 to-teal-100"
-  },
-  perfect_quiz: {
-    label: "Абсолютный разум",
-    desc: "Идеальный тест на 100% баллов",
-    icon: <Crown className="w-5 h-5 text-blue-500" />,
-    color: "text-blue-600 border-blue-200",
-    bg: "from-blue-50 to-indigo-100"
-  }
-};
 
 export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ isOpen, onClose, student }) => {
   if (!isOpen || !student) return null;
@@ -140,46 +108,15 @@ export const PublicProfileModal: React.FC<PublicProfileModalProps> = ({ isOpen, 
                   <div key={colIndex} className="flex flex-col space-y-1.5">
                     {Array.from({ length: 7 }).map((_, rowIndex) => (
                       <div 
-                        key={rowIndex} 
-                        className={`w-3.5 h-3.5 rounded-sm transition-colors duration-150 ${getIntensityClass(colIndex * 7 + rowIndex)}`} 
-                        title={`Активность в ячейке ${colIndex * 7 + rowIndex}`}
+                         key={rowIndex} 
+                         className={`w-3.5 h-3.5 rounded-sm transition-colors duration-150 ${getIntensityClass(colIndex * 7 + rowIndex)}`} 
+                         title={`Активность в ячейке ${colIndex * 7 + rowIndex}`}
                       />
                     ))}
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-
-          {/* Achievements showcase */}
-          <div>
-            <h3 className="text-sm font-black text-zinc-900 uppercase tracking-wider mb-3 font-outfit">Витрина наград</h3>
-            {student.achievements && student.achievements.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {student.achievements.map((key) => {
-                  const badge = BADGES[key];
-                  if (!badge) return null;
-                  return (
-                    <div 
-                      key={key} 
-                      className={`flex items-center gap-3.5 p-3 rounded-2xl border bg-gradient-to-br ${badge.bg} border-zinc-200/50 shadow-sm`}
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-white/95 flex items-center justify-center text-xl shadow-sm border border-zinc-100">
-                        {badge.icon}
-                      </div>
-                      <div>
-                        <h4 className="text-xs font-black text-zinc-950 font-outfit">{badge.label}</h4>
-                        <p className="text-[10px] text-zinc-500 leading-tight mt-0.5">{badge.desc}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="p-6 text-center border border-dashed border-zinc-200 rounded-2xl text-zinc-400 text-xs">
-                Пока нет заработанных медалей
-              </div>
-            )}
           </div>
         </div>
 

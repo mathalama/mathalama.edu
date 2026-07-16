@@ -13,36 +13,38 @@ import {
   CheckCircle,
   XCircle,
   Upload,
-  FileText,
   Clock,
   Loader2,
 } from 'lucide-react';
 
 export default function LessonPage({ params }: { params: Promise<{ courseId: string; lessonId: string }> }) {
   const resolvedParams = use(params);
-  const { modules, submitTest, submitPdf, isSubmittingPdf, pdfUploadProgress, selectLesson } = useLmsStore();
+  const { courses, modules, submitTest, submitPdf, isSubmittingPdf, pdfUploadProgress, selectLesson } = useLmsStore();
   const router = useRouter();
 
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number>>({});
   const [testSubmitted, setTestSubmitted] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
 
-  // Find lesson
+  // Find course and lessons
+  const course = courses.find((c) => c.id === resolvedParams.courseId);
   let currentLesson: any = null;
   let currentModule: any = null;
   let lessonIndex = -1;
   let allLessons: any[] = [];
 
-  modules.forEach((mod) => {
-    mod.lessons.forEach((les, idx) => {
-      allLessons.push({ ...les, moduleTitle: mod.module_title });
-      if (les.id === resolvedParams.lessonId) {
-        currentLesson = les;
-        currentModule = mod;
-        lessonIndex = allLessons.length - 1;
-      }
+  modules
+    .filter((mod) => mod.course_id === resolvedParams.courseId)
+    .forEach((mod) => {
+      mod.lessons.forEach((les, idx) => {
+        allLessons.push({ ...les, moduleTitle: mod.module_title });
+        if (les.id === resolvedParams.lessonId) {
+          currentLesson = les;
+          currentModule = mod;
+          lessonIndex = allLessons.length - 1;
+        }
+      });
     });
-  });
 
   if (!currentLesson) {
     return (
@@ -77,7 +79,7 @@ export default function LessonPage({ params }: { params: Promise<{ courseId: str
   const navigateToLesson = (lesson: any) => {
     if (lesson.status === 'locked') return;
     selectLesson(lesson.id);
-    router.push(`/courses/go-course-uuid/lessons/${lesson.id}`);
+    router.push(`/courses/${resolvedParams.courseId}/lessons/${lesson.id}`);
   };
 
   // Select this lesson on load
@@ -87,7 +89,7 @@ export default function LessonPage({ params }: { params: Promise<{ courseId: str
 
   return (
     <DashboardLayout>
-      <div className="p-6 md:p-8 space-y-8 max-w-6xl mx-auto">
+      <div className="p-6 md:p-8 space-y-8 w-full">
 
         {/* Breadcrumbs */}
         <div className="flex items-center space-x-2 text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>
@@ -95,7 +97,9 @@ export default function LessonPage({ params }: { params: Promise<{ courseId: str
             Мои Курсы
           </button>
           <ChevronRight className="w-3.5 h-3.5" />
-          <span style={{ color: 'var(--text-tertiary)' }}>{currentModule?.module_title}</span>
+          <button onClick={() => router.push(`/courses/${resolvedParams.courseId}`)} className="hover:text-brand transition-colors cursor-pointer text-left">
+            {course?.title || 'Курс'}
+          </button>
           <ChevronRight className="w-3.5 h-3.5" />
           <span style={{ color: 'var(--text-primary)' }}>{currentLesson.title}</span>
         </div>
@@ -125,26 +129,7 @@ export default function LessonPage({ params }: { params: Promise<{ courseId: str
           <VideoPlayer lessonId={currentLesson.id} />
         </div>
 
-        {/* Theory Section */}
-        {currentLesson.theory_content && (
-          <div className="bento-card space-y-4">
-            <h3 className="text-lg font-bold font-outfit flex items-center space-x-2" style={{ color: 'var(--text-primary)' }}>
-              <FileText className="w-5 h-5 text-brand" />
-              <span>Теоретический материал</span>
-            </h3>
-            <div className="prose prose-sm max-w-none" style={{ color: 'var(--text-secondary)' }}>
-              {currentLesson.theory_content.split('\n').map((line: string, i: number) => {
-                if (line.startsWith('### ')) {
-                  return <h3 key={i} className="text-base font-bold mt-4 mb-2" style={{ color: 'var(--text-primary)' }}>{line.replace('### ', '')}</h3>;
-                }
-                if (line.startsWith('```go')) return <pre key={i} className="bg-zinc-950 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto mt-2">{''}</pre>;
-                if (line.startsWith('```')) return null;
-                if (line.trim() === '') return <br key={i} />;
-                return <p key={i} className="text-sm leading-relaxed mb-1">{line}</p>;
-              })}
-            </div>
-          </div>
-        )}
+
 
         {/* Test Section */}
         {currentLesson.components.test.required && (
@@ -220,7 +205,7 @@ export default function LessonPage({ params }: { params: Promise<{ courseId: str
         )}
 
         {/* PDF Assignment Section */}
-        {currentLesson.components.assignment.required && (
+        {currentLesson.components.assignment.required && currentLesson.components.test.passed && (
           <div className="bento-card space-y-4">
             <h3 className="text-lg font-bold font-outfit" style={{ color: 'var(--text-primary)' }}>
               Домашнее задание — Конспект
