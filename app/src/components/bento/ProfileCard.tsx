@@ -32,7 +32,7 @@ export const ProfileCard: React.FC = () => {
         <div className="relative w-16 h-16 flex-shrink-0">
           <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
             <path
-              className="text-zinc-100"
+              style={{ color: 'var(--border)' }}
               strokeWidth="2.5"
               stroke="currentColor"
               fill="none"

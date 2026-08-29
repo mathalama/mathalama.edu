@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLmsStore } from '../../store/useLmsStore';
-import { Sparkles, Key, Mail, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { Key, Mail, AlertTriangle, ShieldAlert, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { Logo } from '@/components/ui/Logo';
 
 export default function LoginPage() {
   const { login, isAuthenticated, lockoutTime } = useLmsStore();
@@ -62,26 +63,23 @@ export default function LoginPage() {
   const isLocked = countdown > 0;
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#ffffff] relative overflow-hidden px-4">
-      {/* Decorative premium gradients */}
-      <div className="absolute top-0 -left-4 w-96 h-96 bg-brand-light rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-      <div className="absolute bottom-0 -right-4 w-96 h-96 bg-emerald-50 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+    <div className="flex min-h-screen items-center justify-center p-4 relative overflow-hidden" style={{ background: 'var(--background)' }}>
+      {/* Decorative gradient glow */}
+      <div className="absolute top-1/4 -left-20 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md bg-white border border-zinc-150 p-8 rounded-bento shadow-bento relative z-10"
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md bento-card p-8 relative z-10 space-y-6"
       >
-        {/* Brand Header */}
-        <div className="flex flex-col items-center text-center space-y-3 mb-8">
-          <div className="w-12 h-12 bg-brand rounded-2xl flex items-center justify-center text-white shadow-lg shadow-brand/20">
-            <Sparkles className="w-6 h-6 animate-pulse" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black text-zinc-950 font-outfit tracking-tight">Mathalama<span className="text-brand">Edu</span></h1>
-            <p className="text-xs text-zinc-400 font-semibold mt-1">Панель авторизации студента</p>
-          </div>
+        {/* Brand Header with Logo */}
+        <div className="flex flex-col items-center text-center space-y-2 pb-2">
+          <Logo size="lg" />
+          <p className="text-xs font-semibold pt-1" style={{ color: 'var(--text-secondary)' }}>
+            Вход в персональный кабинет студента
+          </p>
         </div>
 
         {/* Lockout Warning Banner */}
@@ -89,12 +87,12 @@ export default function LoginPage() {
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="mb-6 p-4 bg-rose-50 border border-rose-100 text-rose-800 rounded-2xl flex items-start space-x-3"
+            className="p-4 bg-rose-500/10 border border-rose-500/30 text-rose-700 dark:text-rose-300 rounded-2xl flex items-start space-x-3 text-xs"
           >
-            <ShieldAlert className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
-            <div className="text-xs">
-              <span className="font-extrabold block">Превышен лимит запросов (429)</span>
-              <span className="block mt-1">Слишком много неудачных попыток входа. Возможность входа заблокирована на {countdown} сек.</span>
+            <ShieldAlert className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-extrabold block">Слишком много попыток входа</span>
+              <span className="block mt-1">Возможность входа заблокирована на {countdown} сек.</span>
             </div>
           </motion.div>
         )}
@@ -104,17 +102,17 @@ export default function LoginPage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="mb-6 p-3.5 bg-amber-50 border border-amber-100 text-amber-800 rounded-xl flex items-start space-x-2.5 text-xs font-semibold"
+            className="p-3.5 bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 rounded-xl flex items-start space-x-2.5 text-xs font-semibold"
           >
-            <AlertTriangle className="w-4.5 h-4.5 text-amber-600 flex-shrink-0" />
+            <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </motion.div>
         )}
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-zinc-500 tracking-wide block">Email адрес</label>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold block" style={{ color: 'var(--text-secondary)' }}>Email адрес</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
                 <Mail className="w-4 h-4" />
@@ -126,16 +124,17 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="student@example.com"
-                className="w-full pl-10 pr-4 py-3 bg-zinc-50/50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-brand focus:bg-white transition-all disabled:opacity-50"
+                className="w-full pl-10 pr-4 py-3 rounded-xl text-xs sm:text-sm border outline-none focus:border-brand transition-all disabled:opacity-50"
+                style={{ background: 'var(--surface-hover)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
               />
             </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-xs font-bold text-zinc-500 tracking-wide block">Пароль</label>
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold block" style={{ color: 'var(--text-secondary)' }}>Пароль</label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-400">
-                <Key className="w-4 h-4" />
+                <Lock className="w-4 h-4" />
               </div>
               <input
                 type="password"
@@ -144,7 +143,8 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-4 py-3 bg-zinc-50/50 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:border-brand focus:bg-white transition-all disabled:opacity-50"
+                className="w-full pl-10 pr-4 py-3 rounded-xl text-xs sm:text-sm border outline-none focus:border-brand transition-all disabled:opacity-50"
+                style={{ background: 'var(--surface-hover)', borderColor: 'var(--border)', color: 'var(--text-primary)' }}
               />
             </div>
           </div>
@@ -152,22 +152,20 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLocked || loading}
-            className="w-full bg-brand hover:bg-brand-dark text-white font-bold py-3.5 rounded-xl shadow-lg shadow-brand/10 transition-all active:scale-98 disabled:opacity-50 disabled:scale-100 flex items-center justify-center space-x-2 cursor-pointer"
+            className="w-full bg-brand hover:bg-brand-dark text-white font-bold py-3.5 rounded-xl shadow-lg shadow-brand/20 transition-all disabled:opacity-50 flex items-center justify-center space-x-2 cursor-pointer text-sm"
           >
             {loading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
-              <span>Войти в систему</span>
+              <span>Войти в личный кабинет</span>
             )}
           </button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-zinc-100 text-center">
-          <p className="text-[10px] text-zinc-400 font-semibold leading-normal">
-            Используйте демонстрационные данные для входа:<br/>
-            <strong className="text-zinc-600 block mt-1 font-bold">Email: student@example.com &nbsp;&bull;&nbsp; Пароль: password</strong>
-          </p>
-        </div>
+        <p className="text-[11px] text-center" style={{ color: 'var(--text-tertiary)' }}>
+          Демо-доступ: <strong style={{ color: 'var(--text-secondary)' }}>student@example.com / password</strong>
+        </p>
+
       </motion.div>
     </div>
   );

@@ -580,16 +580,19 @@ export interface Notification {
 
 
 
-// ── NEW: Certificates ──
+// ── NEW: Certificates (Uploaded by Mentors / Curators) ──
 export interface Certificate {
   id: string;
-  courseTitle: string;
-  studentName: string;
-  issueDate: string;
-  verificationCode: string;
-  grade: string;
-  totalXP: number;
-  completionPercent: number;
+  course_id: string;
+  course_title: string;
+  curator_name: string;
+  issue_date: string;
+  file_name: string;
+  file_url: string;
+  file_size: string;
+  verification_code: string;
+  status: 'issued' | 'pending_review' | 'in_progress';
+  curator_comment?: string;
 }
 
 // ── NEW: Weekly XP data for analytics ──
@@ -725,17 +728,20 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
 
 
 
-// ── NEW: Initial Certificate ──
+// ── NEW: Initial Mentor-Uploaded Certificate ──
 const INITIAL_CERTIFICATES: Certificate[] = [
   {
-    id: 'cert-preview',
-    courseTitle: 'Основы Go (Golang) для начинающих',
-    studentName: 'Иван Смирнов',
-    issueDate: '',
-    verificationCode: 'MATH-2026-GO-' + Math.random().toString(36).substring(2, 8).toUpperCase(),
-    grade: 'Не завершено',
-    totalXP: 0,
-    completionPercent: 33,
+    id: 'cert-math-01',
+    course_id: 'math-course-uuid',
+    course_title: 'Математический анализ и высшая алгебра',
+    curator_name: 'Дмитрий Петров',
+    issue_date: '24 августа 2026',
+    file_name: 'Сертификат_Матанализ_Иван_Смирнов.pdf',
+    file_url: '#',
+    file_size: '2.4 MB',
+    verification_code: 'MATH-2026-ALG-9841',
+    status: 'issued',
+    curator_comment: 'Иван отлично освоил материал курса, сдал все проверочные тесты и выполнил практические задания.'
   }
 ];
 

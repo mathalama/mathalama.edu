@@ -13,6 +13,10 @@
   --sidebar-bg: #ffffff;
   --card-bg: #ffffff;
   --font-sans: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  --heatmap-empty: #e4e4e7;
+  --heatmap-low: #d1fae5;
+  --heatmap-medium: #6ee7b7;
+  --heatmap-high: #10b981;
 }
 
 [data-theme="dark"] {
@@ -27,6 +31,10 @@
   --text-tertiary: #71717a;
   --sidebar-bg: #0f0f12;
   --card-bg: #18181b;
+  --heatmap-empty: #27272a;
+  --heatmap-low: #064e3b;
+  --heatmap-medium: #047857;
+  --heatmap-high: #10b981;
 }
 
 @theme {
@@ -52,11 +60,27 @@ body {
   overflow-x: hidden;
 }
 
-html {
-  scroll-behavior: smooth;
+/* Custom Bento Glassmorphism and Utilities */
+.bento-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento);
+  box-shadow: var(--shadow-bento);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 1.5rem;
 }
 
-/* Custom scrollbar for premium touch */
+.bento-card:hover {
+  box-shadow: var(--shadow-bento-hover);
+}
+
+.bento-inner {
+  background: var(--surface-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-bento-inner);
+}
+
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -67,77 +91,43 @@ html {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: #cbd5e1;
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #d4d4d8;
+  background: #94a3b8;
 }
 
 [data-theme="dark"] ::-webkit-scrollbar-thumb {
   background: #3f3f46;
 }
 
-/* Reusable premium bento component utility */
-.bento-card {
-  background-color: var(--card-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-bento);
-  padding: 24px;
-  box-shadow: var(--shadow-bento);
-  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
 }
 
-.bento-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-bento-hover);
-}
-
-[data-theme="dark"] .bento-card {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .bento-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-}
-
-/* Dark mode text overrides */
-[data-theme="dark"] .text-zinc-900,
-[data-theme="dark"] .text-zinc-950,
-[data-theme="dark"] .text-zinc-800 {
-  color: #fafafa;
-}
-
-[data-theme="dark"] .text-zinc-700 {
-  color: #d4d4d8;
-}
-
-[data-theme="dark"] .text-zinc-600 {
-  color: #a1a1aa;
-}
-
-[data-theme="dark"] .text-zinc-500 {
-  color: #71717a;
-}
-
-[data-theme="dark"] .text-zinc-400 {
-  color: #52525b;
-}
-
-/* Dark mode backgrounds */
-[data-theme="dark"] .bg-white {
-  background-color: var(--surface);
-}
-
-[data-theme="dark"] .bg-zinc-50,
-[data-theme="dark"] .bg-zinc-50\/30,
-[data-theme="dark"] .bg-zinc-50\/50 {
-  background-color: #131316;
-}
-
-[data-theme="dark"] .border-zinc-100,
-[data-theme="dark"] .border-zinc-150,
-[data-theme="dark"] .border-zinc-200 {
-  border-color: var(--border);
+/* Print CSS for Certificates */
+@media print {
+  @page {
+    size: landscape;
+    margin: 0;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #certificate-printable,
+  #certificate-printable * {
+    visibility: visible;
+  }
+  #certificate-printable {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    border: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
 }

@@ -20,7 +20,9 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
+import { Logo } from './Logo';
 import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -76,17 +78,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       <div className="space-y-6">
         {/* Logo */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 bg-brand rounded-xl flex items-center justify-center text-white shadow-md shadow-brand/20">
-              <Sparkles className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-base font-black tracking-tight font-outfit" style={{ color: 'var(--text-primary)' }}>Mathalama<span className="text-brand">Edu</span></span>
-              <span className="text-[9px] px-1.5 py-0.5 rounded font-extrabold block w-max mt-0.5 uppercase tracking-widest" style={{ background: 'var(--border)', color: 'var(--text-secondary)' }}>
-                MVP v1
-              </span>
-            </div>
-          </div>
+          <Logo size="md" />
           {/* Mobile close */}
           <button
             onClick={() => setMobileMenuOpen(false)}
@@ -97,30 +89,15 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
           </button>
         </div>
 
-        {/* Quick Stats */}
-        <div className="p-3.5 rounded-2xl space-y-2" style={{ background: 'var(--surface-hover, var(--border-light))', border: '1px solid var(--border)' }}>
-          <div className="flex items-center justify-between text-xs">
-            <span style={{ color: 'var(--text-secondary)' }} className="font-medium">Активность:</span>
-            <span className="flex items-center text-emerald-600 font-extrabold">
-              <Flame className="w-3.5 h-3.5 fill-current mr-0.5" />
-              {streak} дней
-            </span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span style={{ color: 'var(--text-secondary)' }} className="font-medium">Очки опыта:</span>
-            <span className="font-extrabold" style={{ color: 'var(--text-primary)' }}>{totalXP.toLocaleString()} XP</span>
-          </div>
-        </div>
-
         {/* Nav */}
         <nav className="space-y-1">
           {navItems.map((item) => {
             const isActive = pathname === item.path;
             return (
-              <button
+              <Link
                 key={item.path}
+                href={item.path}
                 onClick={() => {
-                  router.push(item.path);
                   setMobileMenuOpen(false);
                 }}
                 className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-bold relative transition-all cursor-pointer ${
@@ -146,7 +123,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
                     {item.badge}
                   </span>
                 )}
-              </button>
+              </Link>
             );
           })}
         </nav>
@@ -186,12 +163,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
         <button onClick={() => setMobileMenuOpen(true)} className="p-2 rounded-xl cursor-pointer" style={{ color: 'var(--text-primary)' }}>
           <Menu className="w-6 h-6" />
         </button>
-        <div className="flex items-center space-x-2">
-          <div className="w-7 h-7 bg-brand rounded-lg flex items-center justify-center text-white">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <span className="text-sm font-black font-outfit" style={{ color: 'var(--text-primary)' }}>Mathalama<span className="text-brand">Edu</span></span>
-        </div>
+        <Logo size="sm" />
         <div className="relative">
           <button onClick={() => setBellOpen(!bellOpen)} className="p-2 rounded-xl cursor-pointer" style={{ color: 'var(--text-primary)' }}>
             <Bell className="w-5 h-5" />
@@ -235,7 +207,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-x-hidden min-h-screen">
+      <main className="flex-1 flex flex-col overflow-x-hidden min-h-screen">
         {children}
       </main>
     </div>
