@@ -19,6 +19,7 @@ import {
   X,
   Sun,
   Moon,
+  Users,
 } from 'lucide-react';
 import { Logo } from './Logo';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -29,7 +30,7 @@ interface DashboardLayoutProps {
 }
 
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
-  const { isAuthenticated, logout, streak, leaderboard, notifications, theme, toggleTheme } = useLmsStore();
+  const { isAuthenticated, logout, streak, leaderboard, notifications, theme, toggleTheme, role } = useLmsStore();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -63,15 +64,22 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) =>
     );
   }
 
-  const navItems = [
-    { name: 'Дашборд', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { name: 'Мои Курсы', path: '/courses', icon: <BookOpen className="w-5 h-5" /> },
-    { name: 'Аналитика', path: '/analytics', icon: <BarChart3 className="w-5 h-5" /> },
-    { name: 'Уведомления', path: '/notifications', icon: <Bell className="w-5 h-5" />, badge: unreadCount },
-    { name: 'Сертификаты', path: '/certificates', icon: <Award className="w-5 h-5" /> },
-    { name: 'Профиль', path: '/profile', icon: <User className="w-5 h-5" /> },
-    { name: 'Настройки', path: '/settings', icon: <Settings className="w-5 h-5" /> },
-  ];
+  const navItems = role === 'curator'
+    ? [
+        { name: 'Панель проверки', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+        { name: 'Мои Студенты', path: '/courses', icon: <Users className="w-5 h-5" /> },
+        { name: 'Аналитика потока', path: '/analytics', icon: <BarChart3 className="w-5 h-5" /> },
+        { name: 'Настройки', path: '/settings', icon: <Settings className="w-5 h-5" /> },
+      ]
+    : [
+        { name: 'Дашборд', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
+        { name: 'Мои Курсы', path: '/courses', icon: <BookOpen className="w-5 h-5" /> },
+        { name: 'Аналитика', path: '/analytics', icon: <BarChart3 className="w-5 h-5" /> },
+        { name: 'Уведомления', path: '/notifications', icon: <Bell className="w-5 h-5" />, badge: unreadCount },
+        { name: 'Сертификаты', path: '/certificates', icon: <Award className="w-5 h-5" /> },
+        { name: 'Профиль', path: '/profile', icon: <User className="w-5 h-5" /> },
+        { name: 'Настройки', path: '/settings', icon: <Settings className="w-5 h-5" /> },
+      ];
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full justify-between">

@@ -78,7 +78,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center text-center space-y-2 pb-2">
           <Logo size="lg" />
           <p className="text-xs font-semibold pt-1" style={{ color: 'var(--text-secondary)' }}>
-            Вход в персональный кабинет студента
+            Вход в личный кабинет MathalamaEdu
           </p>
         </div>
 
@@ -162,9 +162,14 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-[11px] text-center" style={{ color: 'var(--text-tertiary)' }}>
-          Демо-доступ: <strong style={{ color: 'var(--text-secondary)' }}>student@example.com / password</strong>
-        </p>
+        <div className="text-[11px] text-center space-y-1" style={{ color: 'var(--text-tertiary)' }}>
+          <p>
+            Кабинет студента: <strong className="cursor-pointer hover:underline" style={{ color: 'var(--text-secondary)' }} onClick={() => { setEmail('student@example.com'); setPassword('password'); }}>student@example.com / password</strong>
+          </p>
+          <p>
+            Кабинет куратора: <strong className="cursor-pointer hover:underline" style={{ color: 'var(--text-secondary)' }} onClick={() => { setEmail('curator@example.com'); setPassword('password'); }}>curator@example.com / password</strong>
+          </p>
+        </div>
 
       </motion.div>
     </div>

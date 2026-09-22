@@ -92,6 +92,13 @@ const INITIAL_COURSES = [
     description: "Освойте пределы, производные, интегралы и линейные пространства с нуля.",
     cohort_name: "Поток — Осень 2026",
     curator_name: "Дмитрий Петров"
+  },
+  {
+    id: "frontend-course-uuid",
+    title: "Продвинутый Frontend: React 19 & Next.js 16",
+    description: "Освойте Server Components, Next.js App Router, Zustand и анимации с Framer Motion.",
+    cohort_name: "Поток — Лето 2026",
+    curator_name: "Николай Сидоров"
   }
 ];
 
@@ -381,6 +388,201 @@ const INITIAL_MODULES: Module[] = [
                 text: "Раскройте неопределенность: lim (x -> 1) (x^2 - 1) / (x - 1)",
                 options: ["1", "2", "0", "не определено"],
                 correctOptionIndex: 1
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "not_submitted",
+            file_url: null
+          }
+        }
+      }
+    ]
+  },
+  {
+    course_id: "math-course-uuid",
+    module_id: "m-math-2",
+    module_title: "Модуль 2: Дифференциальное исчисление",
+    lessons: [
+      {
+        id: "lesson-math-3-uuid",
+        title: "Урок 3. Производная функции и геометрический смысл",
+        status: "locked",
+        video_provider: "vimeo",
+        video_id: "99182a",
+        theory_content: "### Определение производной\n\nПроизводная функции f(x) в точке x0 — это предел отношения приращения функции к приращению аргумента при стремящемся к нулю приращении аргумента.\n\n```\nf'(x0) = lim (h -> 0) (f(x0 + h) - f(x0)) / h\n```\n\nГеометрический смысл производной: производная равна тангенсу угла наклона касательной к графику функции в данной точке.",
+        components: {
+          video_watched: false,
+          test: {
+            required: true,
+            passed: false,
+            score: 0,
+            questions: [
+              {
+                id: "qm-3-1",
+                text: "Чему равна производная функции f(x) = x^3?",
+                options: ["3x", "3x^2", "x^2", "3x^3"],
+                correctOptionIndex: 1
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "not_submitted",
+            file_url: null
+          }
+        }
+      },
+      {
+        id: "lesson-math-4-uuid",
+        title: "Урок 4. Правило Лопиталя и исследование функций",
+        status: "locked",
+        video_provider: "kinoscope",
+        video_id: "882739",
+        theory_content: "### Правило Лопиталя\n\nПравило Лопиталя позволяет раскрывать неопределенности вида [0/0] и [inf/inf] с помощью производных.\n\n```\nlim (x -> a) f(x)/g(x) = lim (x -> a) f'(x)/g'(x)\n```\n\n### Экстремумы\nТочки, в которых производная равна нулю или не существует, называются критическими точками. В точках локального экстремума производная меняет свой знак.",
+        components: {
+          video_watched: false,
+          test: {
+            required: true,
+            passed: false,
+            score: 0,
+            questions: [
+              {
+                id: "qm-4-1",
+                text: "Какое условие является необходимым признаком локального экстремума дифференцируемой функции?",
+                options: ["Вторая производная равна нулю", "Первая производная равна нулю", "Функция стремится к бесконечности", "Первая производная положительна"],
+                correctOptionIndex: 1
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "not_submitted",
+            file_url: null
+          }
+        }
+      }
+    ]
+  },
+  {
+    course_id: "frontend-course-uuid",
+    module_id: "m-front-1",
+    module_title: "Модуль 1: Архитектура Next.js и App Router",
+    lessons: [
+      {
+        id: "lesson-front-1-uuid",
+        title: "Урок 1. Маршрутизация, Layouts и Роутинг",
+        status: "unlocked",
+        video_provider: "vimeo",
+        video_id: "99182a",
+        theory_content: "### Файловая маршрутизация в Next.js\n\nВ Next.js App Router маршруты определяются структурой папок. Каждый сегмент пути соответствует папке, в которой находится файл `page.tsx`.\n\n*   `layout.tsx` — переиспользуемый макет, не перерисовывающийся при переходах.\n*   `page.tsx` — уникальный интерфейс страницы.\n*   `template.tsx` — макет, который монтируется заново при каждой навигации.\n\n```tsx\n// app/about/page.tsx\nexport default function About() {\n  return <h1>О нас</h1>;\n}\n```",
+        components: {
+          video_watched: false,
+          test: {
+            required: true,
+            passed: false,
+            score: 0,
+            questions: [
+              {
+                id: "qf-1-1",
+                text: "Какой файл в Next.js App Router отвечает за общую обертку страниц без сброса состояния при переходах?",
+                options: ["template.tsx", "layout.tsx", "page.tsx", "document.tsx"],
+                correctOptionIndex: 1
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "not_submitted",
+            file_url: null
+          }
+        }
+      },
+      {
+        id: "lesson-front-2-uuid",
+        title: "Урок 2. Server Components против Client Components",
+        status: "locked",
+        video_provider: "kinoscope",
+        video_id: "882739",
+        theory_content: "### Две ментальные модели React\n\nNext.js по умолчанию рендерит все компоненты на сервере (React Server Components — RSC). Это уменьшает размер клиентского бандла и ускоряет первую загрузку.\n\n*   **Server Components**: Выполняются на сервере. Могут быть асинхронными (`async/await`) и запрашивать данные напрямую из БД.\n*   **Client Components**: Помечаются директивой `'use client'`. Могут использовать хуки состояния (`useState`, `useEffect`) и обрабатывать события мыши/клавиатуры.\n\n```tsx\n'use client';\nimport { useState } from 'react';\n\nexport default function Counter() {\n  const [count, setCount] = useState(0);\n  return <button onClick={() => setCount(count + 1)}>{count}</button>;\n}\n```",
+        components: {
+          video_watched: false,
+          test: {
+            required: true,
+            passed: false,
+            score: 0,
+            questions: [
+              {
+                id: "qf-2-1",
+                text: "Можно ли использовать хук useState внутри Server Component без директивы 'use client'?",
+                options: ["Да, если компонент асинхронный", "Нет, это вызовет ошибку сборки", "Да, в React 19 это разрешено", "Да, если импортировать его из 'react-server'"],
+                correctOptionIndex: 1
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "not_submitted",
+            file_url: null
+          }
+        }
+      }
+    ]
+  },
+  {
+    course_id: "frontend-course-uuid",
+    module_id: "m-front-2",
+    module_title: "Модуль 2: Стейт-менеджмент и Анимации",
+    lessons: [
+      {
+        id: "lesson-front-3-uuid",
+        title: "Урок 3. Zustand: Легковесный менеджер состояния",
+        status: "locked",
+        video_provider: "vimeo",
+        video_id: "99182a",
+        theory_content: "### Использование Zustand в React\n\nZustand — это простая, быстрая и масштабируемая альтернатива Redux и React Context. Он работает на чистом JS без контекст-провайдеров.\n\n```typescript\nimport { create } from 'zustand';\n\nconst useStore = create((set) => ({ \n  bears: 0,\n  increasePopulation: () => set((state) => ({ bears: state.bears + 1 })),\n  removeAllBears: () => set({ bears: 0 }),\n}));\n```",
+        components: {
+          video_watched: false,
+          test: {
+            required: true,
+            passed: false,
+            score: 0,
+            questions: [
+              {
+                id: "qf-3-1",
+                text: "Нужно ли оборачивать приложение в провайдер (Provider) для работы Zustand?",
+                options: ["Да, обязательно на верхнем уровне", "Нет, стейт доступен напрямую через хуки", "Да, но только для Server Components", "Только при использовании TypeScript"],
+                correctOptionIndex: 1
+              }
+            ]
+          },
+          assignment: {
+            required: true,
+            status: "not_submitted",
+            file_url: null
+          }
+        }
+      },
+      {
+        id: "lesson-front-4-uuid",
+        title: "Урок 4. Framer Motion и микро-интеракции",
+        status: "locked",
+        video_provider: "kinoscope",
+        video_id: "882739",
+        theory_content: "### Анимация элементов\n\nFramer Motion предоставляет компонент `motion` для создания декларативных анимаций.\n\n```tsx\nimport { motion } from 'framer-motion';\n\nexport const MyComponent = () => (\n  <motion.div\n    initial={{ opacity: 0, scale: 0.5 }}\n    animate={{ opacity: 1, scale: 1 }}\n    transition={{ duration: 0.5 }}\n  />\n);\n```\n\n### Layout-анимации\nФлаг `layout` позволяет автоматически анимировать изменение размеров или положения элемента в DOM при изменении верстки.",
+        components: {
+          video_watched: false,
+          test: {
+            required: true,
+            passed: false,
+            score: 0,
+            questions: [
+              {
+                id: "qf-4-1",
+                text: "Какое свойство motion-компонента отвечает за анимацию изменения положения элемента в верстке?",
+                options: ["layout", "position", "flex", "animate-layout"],
+                correctOptionIndex: 0
               }
             ]
           },
@@ -763,9 +965,10 @@ export const initializeMockDB = () => {
   const storedCourses = getFromStorage<any[]>('mathalama_courses', []);
   const storedModules = getFromStorage<any[]>('mathalama_modules', []);
   const hasMathCourse = storedCourses.some(c => c.id === 'math-course-uuid');
+  const hasFrontendCourse = storedCourses.some(c => c.id === 'frontend-course-uuid');
   const modulesLackCourseId = storedModules.some(m => !m.course_id);
 
-  if ((storedCourses.length > 0 && !hasMathCourse) || (storedModules.length > 0 && modulesLackCourseId)) {
+  if ((storedCourses.length > 0 && (!hasMathCourse || !hasFrontendCourse)) || (storedModules.length > 0 && modulesLackCourseId)) {
     localStorage.removeItem('mathalama_courses');
     localStorage.removeItem('mathalama_modules');
     localStorage.removeItem('mathalama_certificates');

@@ -118,6 +118,7 @@ interface LmsState {
   toggleTheme: () => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
+  reviewAssignment: (lessonId: string, status: 'approved' | 'rejected', feedback: string) => void;
 }
 
 // Bootstrap initial databases in local storage
@@ -210,25 +211,50 @@ export const useLmsStore = create<LmsState>((set, get) => ({
     }
 
     // 2. Validate Credentials
-    // Allow student@example.com / password
+    // Allow student@example.com / password and curator@example.com / password
     if (email === 'student@example.com' && password === 'password') {
       const fakeToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjdXJyZW50LXN0dWRlbnQiLCJuYW1lIjoiSXZhbiIsImNvaG9ydCI6IkdvcGhlcnMtMjAyNiIsInJvbGUiOiJzdHVkZW50In0.signature';
       setToStorage('mathalama_token', fakeToken);
       setToStorage('mathalama_role', 'student');
+      setToStorage('mathalama_student_name', 'Иван Смирнов');
+      setToStorage('mathalama_student_email', 'student@example.com');
       
       set({
         token: fakeToken,
         role: 'student',
         isAuthenticated: true,
         loginAttempts: 0,
-        lockoutTime: null
+        lockoutTime: null,
+        studentName: 'Иван Смирнов',
+        studentEmail: 'student@example.com'
       });
 
       get().addToast('Успешный вход!', 'Добро пожаловать в личный кабинет MathalamaEdu.', 'success');
       return { success: true };
     }
 
-    return { success: false, error: 'Неверный логин или пароль. Попробуйте student@example.com / password' };
+    if (email === 'curator@example.com' && password === 'password') {
+      const fakeToken = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjdXJyZW50LWN1cmF0b3IiLCJuYW1lIjoiQWxleGVpIiwicm9sZSI6ImN1cmF0b3IifQ.signature';
+      setToStorage('mathalama_token', fakeToken);
+      setToStorage('mathalama_role', 'curator');
+      setToStorage('mathalama_student_name', 'Алексей Иванов');
+      setToStorage('mathalama_student_email', 'curator@example.com');
+      
+      set({
+        token: fakeToken,
+        role: 'curator',
+        isAuthenticated: true,
+        loginAttempts: 0,
+        lockoutTime: null,
+        studentName: 'Алексей Иванов',
+        studentEmail: 'curator@example.com'
+      });
+
+      get().addToast('Успешный вход куратора!', 'Добро пожаловать в панель проверки MathalamaEdu.', 'success');
+      return { success: true };
+    }
+
+    return { success: false, error: 'Неверный логин или пароль. Попробуйте student@example.com / password или curator@example.com / password' };
   },
 
   logout: () => {
@@ -409,77 +435,6 @@ export const useLmsStore = create<LmsState>((set, get) => ({
       'Конспект сохранен в MinIO S3 и отправлен куратору в Telegram.',
       'success'
     );
-
-    // Simulate curator reviewing the work in Telegram after 6 seconds!
-    setTimeout(() => {
-      const updatedModules = [...get().modules];
-      let unlockedNext = false;
-      let nextLessonTitle = '';
-
-      updatedModules.forEach((mod) => {
-        mod.lessons.forEach((les, idx) => {
-          if (les.id === lessonId) {
-            les.components.assignment.status = 'approved';
-            les.components.assignment.feedback = 'Превосходная работа! Все формулы записаны правильно, конспект содержит детальный разбор кода. Следующий урок разблокирован!';
-            les.status = 'completed';
-
-            // Unlock next lesson in content dripping
-            const nextLes = mod.lessons[idx + 1];
-            if (nextLes) {
-              nextLes.status = 'unlocked';
-              unlockedNext = true;
-              nextLessonTitle = nextLes.title;
-            }
-          }
-        });
-      });
-
-      // Award XP for approved homework
-      const xpBonus = 300; // Large XP award for homework
-      const leaderboard = get().leaderboard.map((student) => {
-        if (student.isCurrentUser) {
-          return { ...student, xp_score: student.xp_score + xpBonus };
-        }
-        return student;
-      }).sort((a, b) => b.xp_score - a.xp_score);
-      leaderboard.forEach((st, idx) => { st.rank = idx + 1; });
-      setToStorage('mathalama_leaderboard', leaderboard);
-
-      const todayString = new Date().toISOString().split('T')[0];
-      const heatmap = get().heatmap.map((day) => {
-        if (day.date === todayString) {
-          return {
-            ...day,
-            activity_count: day.activity_count + 1,
-            xp_earned: day.xp_earned + xpBonus
-          };
-        }
-        return day;
-      });
-      setToStorage('mathalama_heatmap', heatmap);
-
-      setToStorage('mathalama_modules', updatedModules);
-
-      set({
-        modules: updatedModules,
-        leaderboard,
-        heatmap
-      });
-
-      get().addToast(
-        'Домашняя работа проверена!',
-        `Куратор одобрил ваш конспект по лекции "${title}". Получено +${xpBonus} XP!`,
-        'success'
-      );
-
-      if (unlockedNext) {
-        get().addToast(
-          'Доступен новый урок',
-          `Разблокирован урок: "${nextLessonTitle}"`,
-          'info'
-        );
-      }
-    }, 6000);
   },
 
   deleteProfile: async () => {
@@ -1006,5 +961,137 @@ export const useLmsStore = create<LmsState>((set, get) => ({
     setToStorage('mathalama_notifications', notifications);
     set({ notifications });
     get().addToast('Уведомления', 'Все уведомления отмечены как прочитанные.', 'info');
+  },
+
+  reviewAssignment: (lessonId, status, feedback) => {
+    const modules = [...get().modules];
+    let title = '';
+    let courseId = '';
+    let unlockedNext = false;
+    let nextLessonTitle = '';
+
+    modules.forEach((mod) => {
+      mod.lessons.forEach((les, idx) => {
+        if (les.id === lessonId) {
+          title = les.title;
+          courseId = mod.course_id;
+          les.components.assignment.status = status;
+          les.components.assignment.feedback = feedback;
+
+          if (status === 'approved') {
+            les.status = 'completed';
+            // Unlock next lesson (content dripping)
+            const nextLes = mod.lessons[idx + 1];
+            if (nextLes) {
+              nextLes.status = 'unlocked';
+              unlockedNext = true;
+              nextLessonTitle = nextLes.title;
+            }
+          } else {
+            les.status = 'unlocked'; // Reset status to unlocked if rejected so they can re-submit
+            les.components.assignment.status = 'rejected';
+          }
+        }
+      });
+    });
+
+    setToStorage('mathalama_modules', modules);
+    
+    // Add notification to notifications list
+    const notifications = [...get().notifications];
+    const newNotif = {
+      id: `notif-review-${Date.now()}`,
+      type: status === 'approved' ? 'success' as const : 'warning' as const,
+      title: status === 'approved' ? 'Домашнее задание принято! 🎉' : 'Домашнее задание отклонено ❌',
+      message: status === 'approved' 
+        ? `Куратор одобрил вашу работу по лекции "${title}". Получен фидбек: "${feedback}"`
+        : `Куратор отклонил вашу работу по лекции "${title}". Комментарий: "${feedback}"`,
+      timestamp: new Date().toISOString(),
+      read: false,
+      icon: ''
+    };
+    const updatedNotifications = [newNotif, ...notifications];
+    setToStorage('mathalama_notifications', updatedNotifications);
+
+    // If approved, award XP
+    let leaderboard = get().leaderboard;
+    let heatmap = get().heatmap;
+    if (status === 'approved') {
+      const xpBonus = 300;
+      leaderboard = leaderboard.map((student) => {
+        if (student.isCurrentUser) {
+          return { ...student, xp_score: student.xp_score + xpBonus };
+        }
+        return student;
+      }).sort((a, b) => b.xp_score - a.xp_score);
+      leaderboard.forEach((st, idx) => { st.rank = idx + 1; });
+      setToStorage('mathalama_leaderboard', leaderboard);
+
+      const todayString = new Date().toISOString().split('T')[0];
+      heatmap = heatmap.map((day) => {
+        if (day.date === todayString) {
+          return {
+            ...day,
+            activity_count: day.activity_count + 1,
+            xp_earned: day.xp_earned + xpBonus
+          };
+        }
+        return day;
+      });
+      setToStorage('mathalama_heatmap', heatmap);
+    }
+
+    set({
+      modules,
+      notifications: updatedNotifications,
+      leaderboard,
+      heatmap
+    });
+
+    get().addToast(
+      status === 'approved' ? 'Задание одобрено' : 'Задание отклонено',
+      `Студент получит уведомление.`,
+      status === 'approved' ? 'success' : 'info'
+    );
+
+    // Check if course is fully completed (to issue certificate)
+    if (status === 'approved' && courseId) {
+      const courseModules = modules.filter((m) => m.course_id === courseId);
+      const allCompleted = courseModules.flatMap((m) => m.lessons).every((l) => l.status === 'completed');
+      
+      if (allCompleted) {
+        const course = get().courses.find((c) => c.id === courseId);
+        const certificates = [...get().certificates];
+        const alreadyHasCert = certificates.some((c) => c.course_id === courseId);
+        
+        if (course && !alreadyHasCert) {
+          const coursePrefix = course.id.split('-')[0].toUpperCase();
+          const randomCode = Math.floor(1000 + Math.random() * 9000);
+          const newCert = {
+            id: `cert-${courseId}-${randomCode}`,
+            course_id: courseId,
+            course_title: course.title,
+            curator_name: course.curator_name,
+            issue_date: new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
+            file_name: `Сертификат_${course.title.replace(/[\s\(\):]+/g, '_')}_Иван_Смирнов.pdf`,
+            file_url: '#',
+            file_size: '2.2 MB',
+            verification_code: `${coursePrefix}-2026-GRAD-${randomCode}`,
+            status: 'issued' as const,
+            curator_comment: `Иван отлично освоил материал курса "${course.title}", сдал все проверочные тесты и выполнил практические задания.`
+          };
+          
+          const updatedCerts = [...certificates, newCert];
+          setToStorage('mathalama_certificates', updatedCerts);
+          set({ certificates: updatedCerts });
+          
+          get().addToast(
+            'Выдан сертификат! 🎓',
+            `Студенту выдан сертификат за курс "${course.title}".`,
+            'success'
+          );
+        }
+      }
+    }
   },
 }));
